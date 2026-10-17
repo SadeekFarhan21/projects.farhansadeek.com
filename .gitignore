@@ -40,3 +40,6 @@ site/source/js/figures.js
 
 # Screenshots written by the Playwright MCP browser tool
 .playwright-mcp/
+
+# projects without a published post yet; kept locally only
+in-progress/

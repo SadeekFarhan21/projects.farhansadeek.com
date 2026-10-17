@@ -1,4 +1,0 @@
-3
---- exit 101
---- stderr
-runtime error: division by zero

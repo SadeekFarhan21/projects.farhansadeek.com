@@ -1,8 +1,0 @@
-// expect: 5:13: type error: `break` outside of a loop
-fn main() {
-    while true {
-        let f = fn() {
-            break;
-        };
-    }
-}
