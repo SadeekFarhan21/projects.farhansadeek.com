@@ -1,0 +1,51 @@
+{
+ "type": "bars",
+ "format": "money",
+ "unit": "Certainty-equivalent consumption per year",
+ "title": "The Optimal Plan Is Worth 29 Percent More Than Saving 20 Percent",
+ "subtitle": "Exact expected lifetime utility of each policy, as the constant yearly spending that feels the same",
+ "legendLabels": {
+  "emphasis": "Solved or learned",
+  "other": "Rule of thumb"
+ },
+ "rows": [
+  {
+   "label": "Backward induction (optimal)",
+   "value": 35573,
+   "emphasis": true,
+   "detail": "Exact optimum of the MDP"
+  },
+  {
+   "label": "Tabular Q-learning, 24.6M simulated lives",
+   "value": 29401,
+   "emphasis": true,
+   "detail": "-17.4% versus optimal"
+  },
+  {
+   "label": "Double Q-learning, same 24.6M lives",
+   "value": 26253,
+   "emphasis": true,
+   "detail": "-26.2% versus optimal"
+  },
+  {
+   "label": "Best rule in a 1,296-rule grid",
+   "value": 32633,
+   "emphasis": false,
+   "detail": "Save 30%, 100% stocks, -8.3% versus optimal"
+  },
+  {
+   "label": "Save 20%, never buy extras",
+   "value": 31522,
+   "emphasis": false,
+   "detail": "-11.4% versus optimal"
+  },
+  {
+   "label": "Save 20%, buy extras when affordable",
+   "value": 27595,
+   "emphasis": false,
+   "detail": "-22.4% versus optimal"
+  }
+ ],
+ "caption": "Every policy is scored by exact policy evaluation in the same 30-year MDP, so the differences carry no Monte Carlo noise.",
+ "source": "personal-finance-rl/run_all.py (results/results.json)"
+}

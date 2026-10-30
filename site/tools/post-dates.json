@@ -240,5 +240,11 @@
     "source": "earliest first real commit among the roundup's projects: GH/movie-recommendation (krishbadri/movie-recommendation), first recommender commit (Aug 2-3 commits were an unrelated scaffold later deleted); next is chess-next-js 2025-08-06 10:25:32",
     "code": "https://github.com/SadeekFarhan21/projects.farhansadeek.com",
     "tab_title": "Small Builds"
+  },
+  "personal-finance-mdp": {
+    "date": "2026-10-30 10:02:31",
+    "source": "projects/personal-finance-rl, local: earliest file created (model.py)",
+    "code": "https://github.com/SadeekFarhan21/projects.farhansadeek.com/tree/main/personal-finance-rl",
+    "tab_title": "Finance MDP"
   }
 }
