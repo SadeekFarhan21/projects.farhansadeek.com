@@ -1,0 +1,87 @@
+{
+ "grid": [
+  {
+   "n_wealth": 120,
+   "w_max": 3000.0,
+   "dp_ce": 35.57298122360596,
+   "save20_ce": 27.594524023884826
+  },
+  {
+   "n_wealth": 240,
+   "w_max": 3000.0,
+   "dp_ce": 35.60906987544537,
+   "save20_ce": 27.690517780978606
+  },
+  {
+   "n_wealth": 170,
+   "w_max": 6000.0,
+   "dp_ce": 35.57603194748618,
+   "save20_ce": 27.58057487138183
+  }
+ ],
+ "bonus_scale": [
+  {
+   "scale": 0.5,
+   "dp_ce": 35.24711558462892,
+   "dp_never_buy_ce": 35.13619490088314,
+   "save20_buy_ce": 27.025083290907098,
+   "save20_never_buy_ce": 31.52228739290732,
+   "low_earner_year1_threshold": {
+    "vacation": 356.1189181554975,
+    "car": 595.0850928606736
+   },
+   "low_earner_year21_threshold": {
+    "vacation": 467.97542546430327,
+    "car": 737.4479203446083
+   },
+   "high_earner_year1_threshold": {
+    "vacation": 93.42560553633217,
+    "car": 391.70962502648115
+   },
+   "value_of_purchases_to_dp": 0.1109206837457819,
+   "cost_of_buying_when_affordable": 4.497204102000222
+  },
+  {
+   "scale": 1.0,
+   "dp_ce": 35.57298122360596,
+   "dp_never_buy_ce": 35.13619490088314,
+   "save20_buy_ce": 27.594524023884826,
+   "save20_never_buy_ce": 31.52228739290732,
+   "low_earner_year1_threshold": {
+    "vacation": 154.43824588658993,
+    "car": 428.9951274627498
+   },
+   "low_earner_year21_threshold": {
+    "vacation": 290.0218911093849,
+    "car": 529.6236141515429
+   },
+   "high_earner_year1_threshold": {
+    "vacation": 0.0,
+    "car": 178.16538380057906
+   },
+   "value_of_purchases_to_dp": 0.43678632272281703,
+   "cost_of_buying_when_affordable": 3.927763369022493
+  },
+  {
+   "scale": 2.0,
+   "dp_ce": 36.303172221794945,
+   "dp_never_buy_ce": 35.13619490088314,
+   "save20_buy_ce": 28.398410303694043,
+   "save20_never_buy_ce": 31.52228739290732,
+   "low_earner_year1_threshold": {
+    "vacation": 76.4776498834828,
+    "car": 322.22300684979876
+   },
+   "low_earner_year21_threshold": {
+    "vacation": 190.66450109455545,
+    "car": 428.9951274627498
+   },
+   "high_earner_year1_threshold": {
+    "vacation": 0.0,
+    "car": 84.73977826424687
+   },
+   "value_of_purchases_to_dp": 1.1669773209118048,
+   "cost_of_buying_when_affordable": 3.123877089213277
+  }
+ ]
+}

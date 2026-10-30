@@ -1,0 +1,263 @@
+{
+ "type": "series",
+ "format": "money",
+ "unit": "Mean yearly spending",
+ "xFormat": "number",
+ "xLabel": "Working year",
+ "title": "The Optimal Plan Keeps Raising Spending as Wealth Builds",
+ "subtitle": "Mean ordinary spending by year over 100,000 simulated lives, excluding vacations and cars",
+ "entities": [
+  {
+   "name": "Backward induction",
+   "points": [
+    {
+     "x": 1,
+     "value": 20850
+    },
+    {
+     "x": 2,
+     "value": 24960
+    },
+    {
+     "x": 3,
+     "value": 27560
+    },
+    {
+     "x": 4,
+     "value": 30210
+    },
+    {
+     "x": 5,
+     "value": 32540
+    },
+    {
+     "x": 6,
+     "value": 34990
+    },
+    {
+     "x": 7,
+     "value": 37130
+    },
+    {
+     "x": 8,
+     "value": 38800
+    },
+    {
+     "x": 9,
+     "value": 40500
+    },
+    {
+     "x": 10,
+     "value": 42150
+    },
+    {
+     "x": 11,
+     "value": 43730
+    },
+    {
+     "x": 12,
+     "value": 45190
+    },
+    {
+     "x": 13,
+     "value": 46830
+    },
+    {
+     "x": 14,
+     "value": 48370
+    },
+    {
+     "x": 15,
+     "value": 50120
+    },
+    {
+     "x": 16,
+     "value": 51970
+    },
+    {
+     "x": 17,
+     "value": 54060
+    },
+    {
+     "x": 18,
+     "value": 55760
+    },
+    {
+     "x": 19,
+     "value": 57720
+    },
+    {
+     "x": 20,
+     "value": 59720
+    },
+    {
+     "x": 21,
+     "value": 61500
+    },
+    {
+     "x": 22,
+     "value": 63340
+    },
+    {
+     "x": 23,
+     "value": 65410
+    },
+    {
+     "x": 24,
+     "value": 67470
+    },
+    {
+     "x": 25,
+     "value": 69870
+    },
+    {
+     "x": 26,
+     "value": 72410
+    },
+    {
+     "x": 27,
+     "value": 75440
+    },
+    {
+     "x": 28,
+     "value": 77720
+    },
+    {
+     "x": 29,
+     "value": 79080
+    },
+    {
+     "x": 30,
+     "value": 80080
+    }
+   ]
+  },
+  {
+   "name": "Save 20%, buy when affordable",
+   "points": [
+    {
+     "x": 1,
+     "value": 20800
+    },
+    {
+     "x": 2,
+     "value": 25440
+    },
+    {
+     "x": 3,
+     "value": 29530
+    },
+    {
+     "x": 4,
+     "value": 33100
+    },
+    {
+     "x": 5,
+     "value": 36090
+    },
+    {
+     "x": 6,
+     "value": 38520
+    },
+    {
+     "x": 7,
+     "value": 40410
+    },
+    {
+     "x": 8,
+     "value": 41950
+    },
+    {
+     "x": 9,
+     "value": 43140
+    },
+    {
+     "x": 10,
+     "value": 44220
+    },
+    {
+     "x": 11,
+     "value": 45020
+    },
+    {
+     "x": 12,
+     "value": 45670
+    },
+    {
+     "x": 13,
+     "value": 46160
+    },
+    {
+     "x": 14,
+     "value": 46560
+    },
+    {
+     "x": 15,
+     "value": 46930
+    },
+    {
+     "x": 16,
+     "value": 47270
+    },
+    {
+     "x": 17,
+     "value": 47530
+    },
+    {
+     "x": 18,
+     "value": 47660
+    },
+    {
+     "x": 19,
+     "value": 47840
+    },
+    {
+     "x": 20,
+     "value": 47960
+    },
+    {
+     "x": 21,
+     "value": 48020
+    },
+    {
+     "x": 22,
+     "value": 48120
+    },
+    {
+     "x": 23,
+     "value": 48160
+    },
+    {
+     "x": 24,
+     "value": 48210
+    },
+    {
+     "x": 25,
+     "value": 48200
+    },
+    {
+     "x": 26,
+     "value": 48180
+    },
+    {
+     "x": 27,
+     "value": 48140
+    },
+    {
+     "x": 28,
+     "value": 48160
+    },
+    {
+     "x": 29,
+     "value": 48200
+    },
+    {
+     "x": 30,
+     "value": 48290
+    }
+   ]
+  }
+ ],
+ "caption": "The rule ties spending to salary alone, so it never spends down what it has saved.",
+ "source": "personal-finance-rl/run_all.py (results/results.json)"
+}
