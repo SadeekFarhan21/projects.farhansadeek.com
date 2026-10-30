@@ -1,0 +1,10 @@
+Vercel CLI 48.6.0
+Retrieving project…
+Deploying farhan-sadeek-projects/site
+Uploading [--------------------] (0.0B/78B)
+Uploading [====================] (78.0B/78B)
+Inspect: https://vercel.com/farhan-sadeek-projects/site/BF1txBHin8vnAMa9wcbec5UWocjJ [2s]
+Preview: https://site-cnvcqywtz-farhan-sadeek-projects.vercel.app [2s]
+Building
+Building
+Error: No Output Directory named "dist" found after the Build completed. Configure the Output Directory in your Project Settings. Alternatively, configure vercel.json#outputDirectory.

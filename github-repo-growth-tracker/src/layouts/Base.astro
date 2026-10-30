@@ -1,0 +1,66 @@
+---
+import '../styles/global.css';
+
+interface Props {
+  title: string;
+  description?: string;
+  active?: 'all' | 'rising' | 'watchlist' | 'repo';
+}
+
+const { title, description = '', active = 'all' } = Astro.props;
+---
+
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width" />
+    <title>{title}</title>
+    {description && <meta name="description" content={description} />}
+    <script is:inline>
+      // Apply theme before paint to avoid flash
+      (function() {
+        const t = localStorage.getItem('theme') || 'dark';
+        document.documentElement.setAttribute('data-theme', t);
+      })();
+    </script>
+  </head>
+  <body>
+    <main>
+      <div class="top-bar">
+        <nav class="nav-bar">
+          <a href="/" class={active === 'all' ? 'active' : ''}>All Repos</a>
+          <a href="/rising" class={active === 'rising' ? 'active' : ''}>Rising Stars</a>
+          <a href="/watchlist" class={active === 'watchlist' ? 'active' : ''}>Watchlist</a>
+        </nav>
+        <div class="theme-toggle" id="theme-toggle">
+          <button data-theme-val="light" id="btn-light">Light</button>
+          <button data-theme-val="dark" id="btn-dark">Dark</button>
+        </div>
+      </div>
+
+      <slot />
+    </main>
+
+    <script is:inline>
+      (function() {
+        const root = document.documentElement;
+        const toggle = document.getElementById('theme-toggle');
+        const btnLight = document.getElementById('btn-light');
+        const btnDark = document.getElementById('btn-dark');
+
+        function setTheme(t) {
+          root.setAttribute('data-theme', t);
+          localStorage.setItem('theme', t);
+          btnLight.classList.toggle('active', t === 'light');
+          btnDark.classList.toggle('active', t === 'dark');
+        }
+
+        // Init
+        setTheme(localStorage.getItem('theme') || 'dark');
+
+        btnLight.addEventListener('click', () => setTheme('light'));
+        btnDark.addEventListener('click', () => setTheme('dark'));
+      })();
+    </script>
+  </body>
+</html>

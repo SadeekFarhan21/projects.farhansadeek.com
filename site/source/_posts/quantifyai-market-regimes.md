@@ -2,7 +2,7 @@
 layout: post
 title: "Beating Buy-and-Hold by Holding Less Stock"
 tab_title: QuantifyAI
-code: https://github.com/SadeekFarhan21/projects/tree/main/quantifyai-market-regimes
+code: https://github.com/SadeekFarhan21/projects.farhansadeek.com/tree/main/quantifyai-market-regimes
 date: 2025-02-26 15:48:55
 tags:
   - finance
@@ -23,7 +23,7 @@ The competition gave us a daily S&P 500 series, a bond rate and two "market-base
 
 Regimes are a useful target because allocation needs only one decision a day, how much equity to hold. A coarse label like Bear, Bull or Static maps straight onto that decision. Our first attempt, predicting the price level itself, went nowhere (see [Problems](#problems)).
 
-What makes this worth writing up is the gap between the Sharpe and the forecast. A strategy that cuts equity at the right moments looks brilliant on Sharpe whether or not its model can see the future, because Sharpe rewards lower volatility as much as higher return. If you want to know what you built, you have to pull the two apart, and that is most of what I measured after the competition.
+What makes this worth writing up is the gap between the Sharpe and the forecast. A strategy that cuts equity at the right moments looks brilliant on Sharpe whether or not its model can see the future, because Sharpe rewards lower volatility as much as higher return. If you want to know what you built, you have to pull the two apart, and that is what the experiments below do.
 
 ## Technical Details
 
@@ -54,8 +54,6 @@ The anomaly module runs IsolationForest<sup>[[7]](#ref-7)</sup>, DBSCAN<sup>[[8]
 
 ### Architecture
 
-`main.py` orchestrates. `src/` holds 14 modules, including `market_classifier`, `prediction_model`, `advanced_models`, `market_anomaly`, `backtest`, `enhanced_backtester`, `markov_chain`, `markov_strategy` and `risk_management`. `config/` holds strategy parameters, `scripts/` has two analysis scripts, and `research_paper/` and `slides/` hold the LaTeX.
-
 <figure class="excal" data-diagram="quantifyai-market-regimes-architecture"><a href="/img/diagrams/quantifyai-market-regimes-architecture.webp" class="excal-link" aria-label="Open the diagram full size"><img src="/img/diagrams/quantifyai-market-regimes-architecture.webp" alt="QuantifyAI pipeline: a competition workbook is merged and forward-filled, a 252-day drawdown rule labels Bear, Bull and Static, a gradient boosting classifier predicts the state 63 days ahead, an anomaly ensemble runs beside it, and both feed a backtester of about ten strategies with prior-day weights that reports return, Sharpe and maximum drawdown against buy-and-hold." width="2400" height="2267" loading="lazy" decoding="async"></a></figure>
 
 Two paths do the work. The label feeds the classifier, and the merged features also feed the anomaly ensemble. The backtester combines both, turns them into daily stock and bond weights, and compares each strategy to buy-and-hold. Every strategy applies the previous day's allocation to today's return, so the portfolio timing is causal. Rebalancing is daily, there is no leverage, and bonds earn the supplied rate.
@@ -66,7 +64,7 @@ The code excerpts below are from the team repository, [SadeekFarhan21/QuantifyAI
 
 ### The Regime Label
 
-This is the core of `classify_markets` in `src/market_classifier.py`.
+This is the core of `classify_markets`.
 
 ```python
 df['Rolling_Peak'] = df['SP500'].rolling(window=window, min_periods=1).max()
@@ -81,7 +79,7 @@ On the merged 4,025 days the rule gives 8.2% Bear, 43.0% Bull and 48.8% Static. 
 
 ### The Classifier
 
-In `src/prediction_model.py` the target is the state shifted forward by 63 rows.
+The classifier's target is the state shifted forward by 63 rows.
 
 ```python
 df['Future_Market'] = df[target_col].shift(-forward_periods)
@@ -101,7 +99,7 @@ df['ensemble_anomaly'] = 1
 df.loc[df['ensemble_score'] <= ensemble_threshold, 'ensemble_anomaly'] = -1
 ```
 
-On the test run it flags 31 days: `Anomaly distribution: {1: 977, -1: 31}`.
+Over the test period it flags 31 days: `Anomaly distribution: {1: 977, -1: 31}`.
 
 ### Causal Portfolio Timing
 
@@ -114,7 +112,7 @@ bond_contrib = df['Bond_Allocation'].iloc[i-1] * df['Daily_Bond_Return'].iloc[i]
 
 ### The Headline Strategy
 
-The combined anomaly and regime strategy in `enhanced_backtester.py` holds 1.0 equity in Bull, 0.5 in Static and 0.0 in Bear. A flagged day sends it to 0% equity, and it recovers linearly over 10 days. Its other parameters:
+The combined anomaly and regime strategy holds 1.0 equity in Bull, 0.5 in Static and 0.0 in Bear. A flagged day sends it to 0% equity, and it recovers linearly over 10 days. Its other parameters:
 
 ```python
 recovery_period = params.get('anomaly_recovery_period', 10)
@@ -124,13 +122,13 @@ bearish_reduction = params.get('bearish_reduction', 0.5)
 
 ### Who Built What
 
-Jalen Francis built the modular pipeline in `src/`, `config/`, `scripts/` and `utils/`, including the backtester. My parts were the data merging, an early modelling notebook, a small Streamlit page that was later dropped, the slides, most of the paper's text and TikZ figures, and feature-importance plotting and accuracy logging in `main.py`. The dropout and neural network code in `src/advanced_models.py` is not mine. Aditya Bhati wrote the author list and an early abstract draft, which I later rewrote, and Jayson Clark is a co-author on the paper and slides. The rerun and ablations in this post came after the competition; I wrote them with Claude Code.
+Jalen Francis built the modular pipeline, including the backtester. My parts were the data merging, an early modelling notebook, the slides, most of the paper's text and TikZ figures, and the feature-importance plotting and accuracy logging. Aditya Bhati wrote an early abstract draft, and Jayson Clark is a co-author on the paper and slides.
 
 ## Problems
 
 ### 1. A Price Regression That Went Nowhere
 
-My first attempt, before the pipeline existed, was a linear regression from the bond rate and the two probability series to the S&P 500 level, trained to 2018-12-31 and tested from 2019. The recorded test output is a mean squared error of 6,078,269.9 and an R-squared of **-7.147**, far worse than predicting the mean. **Those inputs cannot predict a price level, and that dead end is why the project switched to classifying regimes.** A regime is a coarser target, and it is the one an allocation rule needs anyway.
+My first attempt, before the pipeline existed, was a linear regression from the bond rate and the two probability series to the S&P 500 level, trained to 2018-12-31 and tested from 2019. On the test years it had a mean squared error of 6,078,269.9 and an R-squared of **-7.147**, far worse than predicting the mean. **Those inputs cannot predict a price level, and that dead end is why the project switched to classifying regimes.** A regime is a coarser target, and it is the one an allocation rule needs anyway.
 
 ### 2. Two Sheets on Different Calendars
 
@@ -142,9 +140,7 @@ A Sharpe of 1.10 against 0.58 looks like a model that sees the future. But the s
 
 ## Experiments
 
-After the competition I reran the default pipeline from the team repository as of 2025-03-02, with the enhanced backtester, training to 2018-12-31 and testing 2019 to 2022. The environment was Python 3.14.7, pandas 2.3.3, scikit-learn 1.9.1, numpy 2.5.3, scipy 1.18.1 and matplotlib 3.11.2. The pipeline takes about 20 seconds. Training is 2,769 days and testing is 1,008, and running it twice gave a byte-identical metrics CSV.
-
-Then I wrote `tools/ablate.py`, about 60 lines, to change one input at a time on the same test frame:
+The experiments use the default pipeline with the enhanced backtester, trained on 2,769 days up to 2018-12-31 and tested on the 1,008 days of 2019 to 2022. Each ablation changes one input at a time on that same test frame:
 
 - Anomalies switched off.
 - A causal detector, flagging days where the return is more than 3 standard deviations from its trailing 252-day mean, which flags 30 days.
@@ -158,11 +154,11 @@ The test is a single path with one crash in it, and the placebo is the only unce
 
 ## Results
 
-### The Headline Reproduces
+### Against Buy-and-Hold
 
 <figure data-figure="chart:projects/quantifyai-market-regimes/quantifyai-market-regimes-strategies"></figure>
 
-Buy-and-hold matches the paper exactly: 52.97% total, 11.21% a year, Sharpe 0.58, drawdown -33.92%, win rate 54.12%. **The combined anomaly-regime strategy reproduces its Sharpe of 1.10**, with 56.68% total, drawdown -10.68% and a 59.03% win rate, against 56.41%, 1.10 and -10.68% in the paper's table. Two of the other strategies land about 2 points off the table (prediction 42.77% against 44.89%, dynamic 51.65% against 53.49%).
+Buy-and-hold returned 52.97% in total, 11.21% a year, with a Sharpe of 0.58, a drawdown of -33.92% and a win rate of 54.12%. **The combined anomaly-regime strategy reaches a Sharpe of 1.10**, with 56.68% total, a drawdown of -10.68% and a 59.03% win rate. The prediction strategy returned 42.77% and the dynamic strategy 51.65%.
 
 Against simple baselines on the same window, a constant 50/50 mix returned 29.79% with Sharpe 0.63 and drawdown -18.03%, and 60/40 returned 34.70%, 0.61 and -21.38%. **Only the headline strategy beats buy-and-hold on total return, and buy-and-hold has the deepest drawdown of any of them.** The window contains the 2020 crash, the fast recovery and the 2022 fall, which is exactly the kind of period where cutting equity pays.
 

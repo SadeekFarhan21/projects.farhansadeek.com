@@ -1,0 +1,283 @@
+\documentclass[letterpaper]{article}
+\usepackage{lindrew}
+\usepackage{titling}
+\usepackage{float}
+
+\hypersetup{pdftitle={GitHub Analytics}, pdfauthor={Farhan Sadeek}}
+\begin{document}
+\title{\textbf{GitHub Analytics} \Large Analyzing GitHub Network}
+\author{Farhan Sadeek}
+\date{\today}
+
+\maketitle
+\tableofcontents
+\section{Abstract}
+The objective of this project is to analyze a large social network graph from GitHub, obtained from the MUSAE project. The dataset comprises 37,700 nodes, each representing developers who have starred at least ten repositories, and 289,003 undirected edges corresponding to mutual follower relationships. Each node is labeled as either a Machine Learning Engineer or a Web Developer, based on the individual's job title. This study will employ graph analysis techniques to investigate the relationships within these graphs.
+GitHub is a widely used platform for hosting and sharing open-source software. Many computer programmers maintain a GitHub profile. The platform provides an accessible and cost-effective way to share code internationally. In professions such as Software Engineering and Data Science, recruiters and hiring managers often ask candidates for access to their GitHub profiles, viewing them as portfolios of publicly available projects.
+\subsection{Prior Work in the same Field}
+The dataset that I used came from \href{https://snap.stanford.edu/data/github-social.html}{MUSAE Dataset Collection} on \href{https://snap.stanford.edu}{Stanford Network Analysis Project}. In the paper accompanying the project, the authors introduced an attribute, MUSAE, for learning node embeddings. In this study, they demonstrated that the MUSAE method outperformed contemporary methods for node classification tasks \cite{rozemberczki2021musae}.
+\subsection{Limitations}
+The limitations of this dataset are that it is a snapshot of the developer community from June 2019. That means the data is quite outdated and will likely require new data in the near future to be more useful. Also, there are many more titles than just Machine Learning Engineer or Web Developer, so it's not the most ideal way to represent the data.
+\section{Data}
+\subsection{Source and Creation}
+This dataset originates from the MUSAE project within the Stanford SNAP collection. The authors collected developer information using the GitHub API in June 2019. In this dataset, nodes represent developers with at least 10 starred repositories, and edges indicate mutual follower relationships. An additional subset of the dataset provides information on user location, employer, starred repositories, and node classification by job title. For this project, each node is labeled as either Web Developer (0) or Machine Learning Engineer (1).
+
+\subsection{About the Dataset}
+After a brief analysis of the data, I realized that we are looking at a simple connected network of 37700 developers and their mutual followers (edges in this case). The data is in two files: the first is the target file, which contains node IDs, names, and labels, and is the most important file for this project. The second file is the edgelist, which lists the start and end nodes for each edge.
+\section{Methods and Results}
+We constructed an undirected graph from the edgelist using the igraph package in R and confirmed it is a simple graph with no self-loops or multiple edges. Following the methodology in Kolaczyk and Csardi~\cite{kolaczyk2020sand} (Chapters 2--6), we conducted sequential analysis using the loaded igraph network object.
+\subsection{Descriptive Analysis}
+After doing some very simple analysis, I realized that the graph is \textbf{simple}, \textbf{connected}, \textbf{undirected}, and has (37700) nodes and (289003) edges, with a graph density of (0.000407).
+\begin{table}[H]
+  \centering
+  \begin{tabular}{|c|c|c|c|c|}
+    \hline
+    \textbf{Nodes} & \textbf{Edges} & \textbf{Density} & \textbf{Simple} & \textbf{Connected} \
+    \hline
+    37,700 & 289,003 & 0.000407 & True & True \
+    \hline
+  \end{tabular}
+  \caption{Overview of the GitHub network graph properties.}
+\end{table}
+
+Each node is classified as either a Web Developer or a Machine Learning Engineer, a binary classification for this project, which is much different than a bi-partite graph. However, the nodes aren't completely different objects, as in the Netflix dataset, where movies and humans are two distinct node types. The nodes are classified as follows:
+\begin{table}[H]
+  \centering
+  \begin{tabular}{|l|r|r|}
+    \hline
+    \textbf{Label} & \textbf{Count} & \textbf{Percent} \
+    \hline
+    Web (0) & 27,961 & 74.2% \
+    MLE (1) & 9,739 & 25.8% \
+    \hline
+  \end{tabular}
+  \caption{Distribution of developer type labels in the MUSAE GitHub network.}
+\end{table}
+
+Now, this is interesting because, unlike modern-day Artificial Intelligence, it wasn't a big deal back in the day, and there was still a need for experienced Web Software Engineers. However, with the rise of Large Language Models, that trend might change a lot. Great. Since Chapter 3 won't be very useful to us, we will move to Chapter 4, which might be the most important chapter we cover in this analysis notebook. Before
+Now, moving on to descriptive Analysis, I analyzed the degree distribution of the nodes that are available on the website. So, for degree distribution, we have
+\subsubsection{Degree and Edge Distribution}
+After looking at the degree distribution, I think this network would be sparse, and we would very likely see a power law in the log-log plot, indicating that a few nodes connect to most of the edges.
+\begin{table}[H]
+  \centering
+  \begin{tabular}{|l|r|}
+    \hline
+    \textbf{Statistic} & \textbf{Degree} \
+    \hline
+    Min    & 1 \
+    Q1     & 2 \
+    Median & 6 \
+    Mean   & 15.33 \
+    Q3     & 13 \
+    Max    & 9458 \
+    \hline
+  \end{tabular}
+  \caption{Summary statistics for the node degree distribution in the GitHub network.}
+\end{table}
+Since the degree distribution suggests that a few nodes have many edges, I will first plot it and check whether a few nodes are responsible for most of the edges.
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=0.8\textwidth]{.../plots/degree_histogram.pdf}
+  \caption{Degree histogram distribution in the GitHub network}
+  \label{fig:degreehist}
+\end{figure}
+From the plot, most nodes have very small degrees, so we should use a log-log plot to properly justify our prediction.
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=0.8\textwidth]{.../plots/loglog_degree_distribution.pdf}
+  \caption{Log-log plot of the degree distribution in the GitHub network}
+  \label{fig:loglogdist}
+\end{figure}
+From this log-log plot, I can see that the degree distribution follows a power law, indicating that a few nodes are connected to most of the nodes in the network.
+\subsection{Vertex Centrality}
+Vertex centrality measures the importance of individual nodes in a network. Four centrality measures available in the igraph package for R will be plotted. Due to the network's size, visualizations may be difficult to interpret, but the analysis will proceed as planned.
+
+\begin{table}[H]
+  \centering
+  \caption{Summary Statistics of Network Centrality Measures}
+  \begin{tabular}{l|rrrr}
+    \hline
+    Statistic & Degree       & Betweenness & Closeness & Eigenvector \
+    \hline
+    Minimum     & 0.00002653  & 0.000000001  & 0.1414    & 0.0000000   \
+    1st Quartile  & 0.00005305  & 0.000000045 & 0.2841    & 0.0004698  \
+    Median   & 0.0001592   & 0.000001529 & 0.3113    & 0.0030462  \
+    Mean     & 0.0004067   & 0.000059592 & 0.3137    & 0.0066687  \
+    3rd Quartile  & 0.0003448   & 0.000017282 & 0.3469    & 0.0089577  \
+    Maximum     & 0.2509689   & 0.269626963   & 0.5231    & 1.0000000  \
+    \hline
+  \end{tabular}
+\end{table}
+
+Now, from this table, we can get a lot of information about the graph. Looking at the \textbf{degree centrality}, the maximum value (0.25) is about (600) times the mean value (0.0004067), which means that there are a few nodes that are connected to most of the nodes in the network. On top of that, the \textbf{eigenvector centrality} has a maximum value of (1.0000000) and its mean is (0.0066687), which means that not only are the very well-connected nodes connected to other nodes at random, but they are also connected to other nodes that are also very well-connected. Now for \textbf{betweenness centrality}, the maximum value is (0.269626963), and their mean is almost zero, which means that most nodes are dead-end. However, some nodes with extremely high betweenness centrality are bridges in the graph, meaning they connect different communities. These are the choke points in a network from an economics perspective. Lastly, the \textbf{closeness centrality} has a maximum value of (0.5231), and its mean is (0.3137), which are relatively close to each other compared to the other ones, which implies that the network might be large, but it's very tight-knit.
+
+Now, I will plot the correlation between the centrality measures to see if there is any relationship.
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=0.8\textwidth]{.../plots/centrality_correlation.pdf}
+  \caption{Correlation between centrality measures in the GitHub network}
+  \label{fig:centrality_correlation}
+\end{figure}
+
+From this correlation plot, we can see that most centrality measures are correlated with each other.
+\subsection{Component Structure}
+In this network, there is a single giant component that encompasses all nodes and edges.
+\begin{table}[H]
+  \centering
+  \begin{tabular}{|c|c|c|c|}
+    \hline
+    \textbf{Components} & \textbf{Nodes} & \textbf{Edges} & \textbf{Articulation Points}\
+    \hline
+    1 & 37,700 & 289,003 & 350 \
+    \hline
+  \end{tabular}
+  \caption{Properties of the giant component in the GitHub network.}
+\end{table}
+So this network is a single giant component that has tons of nodes and edges. But the interesting part is that there are only 350 articulation points, meaning that if we remove those nodes and their edges, the graph would become disconnected. This network is not very robust or resilient to failures because it uses a hub-and-spoke architecture.
+\subsection{Transitivity and Clustering}
+
+From the previous section, we realized that this network contains a single connected component and is neither very transitive nor resilient to failures. So that means that we can find a community structure in this network. But before that, we need to talk about local and global transitivity, as it will give us a better understanding of the network.
+\begin{table}[H]
+  \centering
+  \begin{tabular}{|c|c|c|}
+    \hline
+    \textbf{Network} & \textbf{Global} & \textbf{Local} \
+    \hline
+    GitHub Network & 0.01235719 & 0.1934205 \
+    \hline
+  \end{tabular}
+  \caption{Transitivity of the GitHub network.}
+\end{table}
+
+Since transitivity is the probability that two nodes are connected given that they are connected to a third node, the GitHub network is not very transitive. Therefore, the conclusion is that although this graph might be a single giant component, it's not very well connected, as developers, on average, don't know each other very well. That is somewhat tied to the real work on GitHub because, as a developer myself, I don't think I really know many other developers who are on GitHub. The only ones I follow are the most popular ones, and just like me, most developers follow them, creating a weak community structure.
+\subsection{Community Detection and Graph Partitioning}
+Since we have realized that this network has a community structure, we will first identify the communities using the Fast-Greedy community detection algorithm. Applying what I got,
+\begin{table}[H]
+  \centering
+  \begin{tabular}{lrr}
+    \hline
+    \textbf{Algorithm} & \textbf{Number of Communities} & \textbf{Modularity} \
+    \hline
+    Fast-greedy & 335 & 0.3957 \
+    \hline
+  \end{tabular}
+  \caption{Community detection results using the Fast-greedy algorithm}
+  \label{tab:fast_greedy}
+\end{table}
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=0.8\textwidth]{.../plots/graph_partition.pdf}
+  \caption{Graph partitioning of the GitHub network.}
+  \label{fig:graph_partition}
+\end{figure}
+After looking at the graph very carefully, I noticed that it is partitioned into different communities, but the most interesting part is the main center community, where it seems there is a very closely connected community among the developers, and most of the other developers are connected to that community. To verify this, I will plot the graph's k-core distribution.
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=0.8\textwidth]{.../plots/kcore_distribution.pdf}
+  \caption{K-core distribution of the GitHub network}
+  \label{fig:kcore_distribution}
+\end{figure}
+Looking at the k-core distribution, we see a large number of nodes in the first k-core, indicating they are very well connected to each other and appear to form the main community in the graph.
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=0.8\textwidth]{.../plots/local_clustering.pdf}
+  \caption{Local clustering of the GitHub network}
+  \label{fig:local_clustering}
+\end{figure}
+As expected, the local clustering coefficient is quite low, indicating that this network indeed exhibits a hub-and-spoke structure. Also, the community size in the graph is quite important for understanding its structure.
+\begin{table}[H]
+  \centering
+  \begin{tabular}{lr}
+    \hline
+    \textbf{Size} & \textbf{Count} \ \hline
+    6  & 10,868 \
+    2  & 10,818 \
+    4  & 10,776 \
+    3  & 1,379  \
+    5  & 1,225  \
+    1  & 1,071  \
+    7  & 250    \
+    8  & 95     \
+    9  & 39     \
+    11 & 26     \ \hline
+  \end{tabular}
+  \caption{Top 10 Communities by Size using Fast-Greedy}
+  \label{tab:community_sizes}
+\end{table} This is very interesting because it shows that many small communities exist in the graph, indicating that many developers are not connected to the main community but have their own smaller ones.s. This is quite similar to my experience as well, because I am mostly connected to my peers and some really well-known developers, so the network isn't as strong.
+\subsection{Assortativity}
+\begin{table}[H]
+  \centering
+  \begin{tabular}{lr}
+    \hline
+    \textbf{Assortativity} & \textbf{Value} \ \hline
+    Degree & $-0.075$ \
+    ML_target & 0.378 \ \hline
+  \end{tabular}
+  \caption{Assortativity of the GitHub network}
+  \label{tab:assortativity}
+\end{table}
+The negative degree assortativity ($r \approx -0.075$) indicates that high-degree hubs tend to connect to low-degree nodes (disassortative mixing). The positive ML_target assortativity ($r \approx 0.378$) reveals strong homophily: developers of the same type preferentially connect.
+\subsection{Comparison with Random Graphs}
+In Chapter 5, we will compare the graph properties of the random graph with those of the GitHub network.
+\begin{table}[H]
+  \centering
+  \begin{tabular}{l|rrrr}
+    \hline
+    \textbf{Model} & \textbf{Mean Degree} & \textbf{SD Degree} & \textbf{Transitivity} & \textbf{Components} \
+    \hline
+    GitHub Network & 15.3317 & 80.7881 & 0.0124 & 1 \
+    Erd\H{o}s–R'enyi       & 15.3338 & 3.9162  & 0.0004 & 1 \
+    Config Model      & 15.3317 & 80.7881 & 0.0123 & 1 \
+    Watts–Strogatz    & 14.0000 & 1.1703  & 0.5052 & 1 \
+    Barab'asi–Albert   & 15.9981 & 19.8770 & 0.0027 & 1 \
+    \hline
+    %% Bipartite
+  \end{tabular}
+  \caption{Comparison of network properties between the GitHub network and various random graph models.}
+  \label{tab:model_comparison}
+\end{table}
+
+From the table above, the Erd\H{o}s–R'enyi, Watts–Strogatz, and Barab'asi–Albert models each fail to reproduce the observed degree distribution: ER and WS produce nearly constant degrees, while BA generates a much narrower spread than the real network. The configuration model, by construction, preserves the exact degree sequence, so its mean and standard deviation of degree match the observed values. Its transitivity is also close to the observed value, which raises the question: Is the GitHub network distinguishable from a configuration model at all?
+
+\subsubsection{Configuration Model: Path Length and Modularity}
+
+To answer this, we generated 20 configuration-model random graphs (each preserving the observed degree sequence) and measured the average path length and modularity (fast-greedy) of each. Table~\ref{tab:cfg_comparison} reports the means and standard deviations across these 20 replicates, alongside the observed values and (z)-scores.
+
+\begin{table}[H]
+  \centering
+  \begin{tabular}{l|rrrrr}
+    \hline
+    \textbf{Metric} & \textbf{Observed} & \textbf{Config Mean} & \textbf{Config SD} & \textbf{$z$-score} & \textbf{$p$-value} \
+    \hline
+    Avg Path Length & 3.26 & — & — & — & — \
+    Modularity      & — & — & — & — & — \
+    \hline
+  \end{tabular}
+  \caption{Observed network vs.\ configuration model (20 replicates). Values will be filled after re-running the analysis. A $z$-score far from zero (and $p < 0.05$) indicates the observed network is distinguishable from the configuration model on that metric.}
+  \label{tab:cfg_comparison}
+\end{table}
+
+% TODO: generate chapter5_cfg_distributions.pdf from analysis code
+% \begin{figure}[H]
+%   \centering
+%   \includegraphics[width=0.9\textwidth]{.../codex_outputs/chapter5_cfg_distributions.pdf}
+%   \caption{Distribution of average path length and modularity across 20 configuration model replicates. The red dashed line marks the observed value.}
+%   \label{fig:cfg_distributions}
+% \end{figure}
+
+The configuration model preserves the degree distribution but uniformly rewires edges subject to that constraint. If the observed network's modularity is significantly higher than the configuration model's, this means the community structure in the real network is not simply an artifact of the degree distribution—there is genuine assortative clustering beyond what degree heterogeneity alone produces. Similarly, if the average path length differs, the real network's routing structure departs from what a random degree-preserving rewiring would produce.
+
+\subsection{Small-World Assessment}
+To evaluate the small-world properties of the network, we compare the clustering coefficient and average path length of the GitHub network with those of an equivalent Erd\H{o}s–R'enyi (ER) random graph. The clustering coefficient for the GitHub network is (0.0124), which is approximately (30.2) times the ER mean of (0.000409). In contrast, the average path length is (3.30), which is comparable to the ER mean of (4.13) (a ratio of (0.80)). Since the network exhibits clustering far exceeding that of random graphs while maintaining a similar average path length, there is strong evidence for a small-world structure.
+
+\section{Discussion and Future Work} I tried Hierarchical Clustering to find communities in the network, but it didn't work well because the network is too large, so we couldn't see all the details we didn't have.e. Also, in Chapter 6 of Kolaczyk and Csardi \cite{kolaczyk2020sand}, the authors explained Exponential Random Graph Models, Stochastic Block Models, and Latent Network Models, and how I can fit my graph to those random graph models. So, it would be nice to take a look at our graph and how that might fit into these models. Since we have to run (1000+) simulations for that one, I wasn't able to experiment with it.
+
+I think some form of clustering would be well-suited to this project. In~\cite{kolaczyk2020sand}, we discussed hierarchical clustering of these graph networks, but implementing it on such a large graph is almost impossible, so I used a spectral clustering method to find communities in the network. One very important factor that I would like to explore is storytelling and problem-solving. So far, as I have worked with the data, I've created many visualizations but haven't quite found a use case for them. I would really be curious to see if I can start with a question and try to answer it using the data. In some ways, I would like to explore data-driven storytelling, decision-making, and problem-solving.
+
+\nocite{*}
+\bibliographystyle{plain}
+\bibliography{lib}
+% Ego Network – take a very well-connected node, find its ego networks, and plot that
+% Sasha's Clustering is also very good. I think I might want to include that in my plot.
+\end{document}

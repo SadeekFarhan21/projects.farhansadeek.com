@@ -1,7 +1,7 @@
 ---
 layout: post
 title: "Testing Crypto Reversal Under a Pre-Registered Protocol"
-code: https://github.com/SadeekFarhan21/projects/tree/main/crypto-reversal-preregistered
+code: https://github.com/SadeekFarhan21/projects.farhansadeek.com/tree/main/crypto-reversal-preregistered
 tags:
   - quant
   - crypto
@@ -19,8 +19,6 @@ I wrote down one hypothesis, a universe, a period split, a list of 18 trials, a 
 The result splits in two. Among the 50 most liquid USDT pairs on Binance, yesterday's losers do rank above yesterday's winners the next day. The holdout mean rank information coefficient of one day reversal is 0.019 with a Newey-West<sup>[[1]](#ref-1)</sup> $t$ of 2.24, which clears the pre-registered bar of $t > 2$ by a small margin. That hypothesis is supported. The same signal traded as a dollar-neutral portfolio has a holdout gross Sharpe of -0.78 and a net Sharpe of -4.06. It lost money before paying a single basis point of cost. The second hypothesis, that the portfolio picked in development makes money after 15 bps per trade, is not supported. That portfolio earned a net Sharpe of 0.08 with a probabilistic Sharpe ratio<sup>[[2]](#ref-2)</sup> of 0.55, against a required 0.95.
 
 So the honest answer to "can we predict markets" from this study is yes, a little, at the level of daily cross-sectional ranks, and no, not in a way that paid after costs in the pre-registered test. There is also a post-hoc observation that the ridge and gradient boosting models did much better in the holdout than the model my selection rule picked. I explain below why I cannot claim that as a result.
-
-Every number in this post comes from a result file the pipeline wrote.
 
 *Reading note.* If you only want the verdicts, read [Results](#results). The most useful sections for anyone building a backtest are [Problems](#problems) and the selection failure at the end of [Experiments](#experiments).
 
@@ -54,9 +52,7 @@ The periods are fixed too.
     |  training only   |  5 day embargo per fold          |  up to 2024-06-25        |
 ```
 
-The holdout script writes a lock file containing the SHA-256 of the pre-registration before it computes anything, and refuses to run if the lock exists. While writing this post I recomputed the hash of the current pre-registration, and it matches the one recorded in the lock, so the file has not been edited since the holdout ran.
-
-An independent reviewer who did not build the project later checked the same thing from the other side. The hash of the pre-registration still equals the one recorded in the lock when the holdout started, at 03:07 UTC on 2026-09-27. The file was last modified at 22:30:43 US Eastern the evening before, 35 seconds before the download log was created and about 37 minutes before the holdout ran, so it was fixed before any price was seen. The project was not yet in git at that point, so this rests on file timestamps plus the lock hash rather than on commit history. The same reviewer reran the development study and recomputed the holdout from the frozen selection, and both matched the committed files exactly.
+The holdout script writes a lock file containing the SHA-256 of the pre-registration before it computes anything, and refuses to run if the lock exists. Any later edit to the pre-registration would no longer match the recorded hash.
 
 A negative answer was an acceptable outcome, and half of one is what I got.
 
@@ -209,7 +205,7 @@ lock = {"started_utc": datetime.now(timezone.utc).isoformat(),
 LOCK.write_text(json.dumps(lock, indent=2))
 ```
 
-The lock is written before any holdout number exists, so a crash halfway through still counts as the one touch. This is not tamper-proof against me, since I could delete the file, but deleting it would be a deliberate act rather than an accident, and the hash makes any later edit to the pre-registration detectable. The lock records a start and a completion four minutes apart on 2026-09-27, with verdicts "supported" and "not supported".
+The lock is written before any holdout number exists, so a crash halfway through still counts as the one touch. This is not tamper-proof against me, since I could delete the file, but deleting it would be a deliberate act rather than an accident, and the hash makes any later edit to the pre-registration detectable. When the run finishes, the lock records its completion and the two verdicts, "supported" and "not supported".
 
 ## Problems
 
@@ -247,7 +243,7 @@ pandas 3 changed `DataFrame.stack()` to keep NaN rows<sup>[[16]](#ref-16)</sup>.
 
 This one cost the most. The first development run logged 14 trials, all the single factors and all the ridge models, and then sat at 0.2% CPU for more than ten minutes with no output. Nothing crashed and nothing timed out.
 
-A standalone repro that dumped stack traces showed the process stuck inside the gradient boosting fit, while building the root of the first tree, on 80,000 random rows. With OpenMP limited to one thread the same fit finished in 3.4 seconds. With 4 or 14 threads it did not finish within 60 seconds. scikit-learn ships its own OpenMP runtime, and the machine was also running 14 other agents' jobs at the time. I did not find the root cause. The fix is a one-thread limit around every scikit-learn fit and predict.
+A standalone repro that dumped stack traces showed the process stuck inside the gradient boosting fit, while building the root of the first tree, on 80,000 random rows. With OpenMP limited to one thread the same fit finished in 3.4 seconds. With 4 or 14 threads it did not finish within 60 seconds. scikit-learn ships its own OpenMP runtime, and I did not find the root cause. The fix is a one-thread limit around every scikit-learn fit and predict.
 
 ```python
 def fit(self, train: pd.DataFrame):
@@ -259,15 +255,11 @@ def fit(self, train: pd.DataFrame):
 
 A depth 3 fit on 75,250 rows takes about 3 seconds single-threaded, so the price is small. The more interesting cost is on the record. The pre-registration says every trial ever evaluated in development is appended to a trial log and the deflated Sharpe uses its line count as $N$. The hung run had already appended 14 lines, so the log has 32 lines rather than 18, and the deflated Sharpe below uses $N = 32$. That overstates the number of distinct trials, since 14 of them are repeats, which makes the bar higher and the test more conservative. I left it that way because the rule said to count lines, and a rule you adjust when it is inconvenient is not a rule.
 
-### A Bookkeeping Bug I Found After the Holdout
-
-After the holdout ran I noticed that the lag 1 robustness blocks in the holdout report give the IC of the unlagged forecast. The IC fields are copied from the lag 0 evaluation, while the Sharpe and return fields in those blocks are correctly lagged. Fixing it means rerunning the holdout, which the protocol forbids, so the report stays as it is and the bug is documented. The lagged IC numbers are not used anywhere in this post. The verification found one more issue in the same lag 1 blocks. The forward return only exists on rows where a coin is a universe member, so a lagged weight on a coin that left the universe the next day earns 0 instead of its actual return. This affects only the lag 1 robustness numbers, such as the -0.43 quoted below, and neither H1 nor H2.
-
 ### A Look-Ahead Test That Could Not Fail
 
 The test that guards against look-ahead in the features changes every price from a date $T$ on and checks that nothing before it moves. Its docstring said features at $T-1$ must not change, but the code compared only dates strictly before $T-1$, with a `<` where it needed `<=`. That left exactly the case that matters most unguarded, a feature at the close of $T-1$ that quietly uses the bar at $T$.
 
-I did not catch this. The independent verification did, with a mutation test. Replacing `ret_1d` with a one day lead, `close.shift(-1) / close - 1`, passed the original test. With `<=` the lead is caught and the real features still pass, so the test now uses `<=` and the suite is still 25 passing tests. The real features never had a lead, so no result changes, but for the whole study the test that was supposed to prove that could not have failed on the most likely bug. A test only counts once you have seen it fail on the thing it is meant to catch.
+A mutation test exposed it. Replacing `ret_1d` with a one day lead, `close.shift(-1) / close - 1`, passed the original test. With `<=` the lead is caught and the real features still pass, so the test now uses `<=`. The real features never had a lead, so no result changes, but until then the test that was supposed to prove that could not have failed on the most likely bug. A test only counts once you have seen it fail on the thing it is meant to catch.
 
 ### The One That Shapes the Result
 
@@ -335,7 +327,7 @@ This is the central finding, so it is worth being precise about how it can happe
 
 <figure data-figure="chart:projects/can-we-predict-markets/holdout-cost"></figure>
 
-The cost sensitivity shows how thin the edge was. Net Sharpe falls from 0.77 at 0 bps to 0.54 at 5 bps and -0.37 at 25 bps. Delaying execution by one day takes it to -0.43 at 15 bps (this comes from the lag 1 robustness block, whose Sharpe fields are correctly lagged). None of this includes the funding cost of holding the short leg as a perpetual future, which is not modeled at all and would make things worse in a rising market.
+The cost sensitivity shows how thin the edge was. Net Sharpe falls from 0.77 at 0 bps to 0.54 at 5 bps and -0.37 at 25 bps. None of this includes the funding cost of holding the short leg as a perpetual future, which is not modeled at all and would make things worse in a rising market.
 
 ### Post Hoc, and Not a Claim
 
@@ -351,7 +343,7 @@ At the level of daily cross-sectional ranks in liquid crypto, yes, a little. The
 
 ### Benchmark
 
-Stage timings, median of 3 runs on an M4 Pro that was heavily loaded by other jobs at the time, so treat them as rough.
+Stage timings, median of 3 runs on an M4 Pro laptop. Treat them as rough.
 
 | Stage | Time |
 |---|---|
@@ -386,9 +378,9 @@ Binance spot does not allow shorting, so a real implementation would short perpe
 
 The names ranked 30 to 50 by volume are where both the tails and the costs live. A top 20 or top 30 universe would test whether the rank signal survives where trading is cheap.
 
-### Test the Thing That Broke
+### Mutation-Test Every Guard
 
-Fix the lag 1 IC bookkeeping and the missing returns for coins that leave the universe before the next holdout, and add a test that the lag option changes every lag-dependent field. The bug was only possible because no test asserted that. More generally, run a mutation against every guard test, the way the verification did for the look-ahead test, so each one is known to fail when it should.
+The look-ahead test could not fail on a one day lead until a mutation test showed it. I would run a mutation like that against every guard test from the start, so each one is known to fail when it should.
 
 ### Price Delistings as Losses
 

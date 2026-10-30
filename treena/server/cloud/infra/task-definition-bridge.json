@@ -1,0 +1,44 @@
+{
+  "family": "treena-bridge-cloud",
+  "requiresCompatibilities": ["FARGATE"],
+  "networkMode": "awsvpc",
+  "cpu": "512",
+  "memory": "1024",
+  "executionRoleArn": "arn:aws:iam::ACCOUNT_ID:role/treena-bridge-execution-role",
+  "taskRoleArn": "arn:aws:iam::ACCOUNT_ID:role/treena-bridge-task-role",
+  "containerDefinitions": [
+    {
+      "name": "treena-bridge",
+      "image": "ACCOUNT_ID.dkr.ecr.REGION.amazonaws.com/treena-bridge-cloud:latest",
+      "essential": true,
+      "portMappings": [
+        {
+          "containerPort": 3001,
+          "protocol": "tcp"
+        }
+      ],
+      "environment": [
+        { "name": "WORKSPACE_DIR", "value": "/workspace" },
+        { "name": "PORT", "value": "3001" }
+      ],
+      "logConfiguration": {
+        "logDriver": "awslogs",
+        "options": {
+          "awslogs-group": "/ecs/treena-bridge-cloud",
+          "awslogs-region": "us-east-1",
+          "awslogs-stream-prefix": "bridge"
+        }
+      },
+      "healthCheck": {
+        "command": ["CMD-SHELL", "curl -f http://localhost:3001 || exit 1"],
+        "interval": 30,
+        "timeout": 5,
+        "retries": 3,
+        "startPeriod": 60
+      },
+      "linuxParameters": {
+        "initProcessEnabled": true
+      }
+    }
+  ]
+}

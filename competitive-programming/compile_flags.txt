@@ -1,0 +1,6 @@
+-std=c++23
+-nostdinc++
+-isystem/opt/homebrew/opt/gcc/include/c++/16
+-isystem/opt/homebrew/opt/gcc/include/c++/16/aarch64-apple-darwin25
+-isystem/opt/homebrew/opt/gcc/include/c++/16/backward
+-I/opt/homebrew/opt/boost/include

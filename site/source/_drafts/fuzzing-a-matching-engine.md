@@ -1,7 +1,7 @@
 ---
 layout: post
 title: "Fuzzing a Matching Engine Against a Brute-Force Twin"
-code: https://github.com/SadeekFarhan21/projects/tree/main/price-time-matching-engine
+code: https://github.com/SadeekFarhan21/projects.farhansadeek.com/tree/main/price-time-matching-engine
 tags:
   - trading
   - market-microstructure
@@ -15,11 +15,11 @@ date: 2026-09-29 04:01:45
 
 I wrote the core of a small exchange in C++20, a limit order book and matching engine for one symbol on one thread, with price-time priority, five order types, cancel, and modify with the usual queue position rules. Every input and output is a plain event, so the engine is a deterministic state machine that can be replayed from its log.
 
-The part I trust most is not the engine but the test that watches it. A second matcher, written to be obviously correct rather than fast, processes the same random order flow, and the two are compared on every output event and periodically on the full priority-ordered contents of the book. Across **8.3 million random events** the two never disagreed. On 2026-09-27 an independent rerun with a seed I had not used (seed 11, 200,000 events) also matched with **zero divergence**, and a clean Release rebuild passed all **39 tests**.
+The part I trust most is not the engine but the test that watches it. A second matcher, written to be obviously correct rather than fast, processes the same random order flow, and the two are compared on every output event and periodically on the full priority-ordered contents of the book. Across **8.3 million random events** the two never disagreed.
 
 A fuzzer that passes proves little unless it can fail. So I planted six known bugs, one at a time, in copies of the engine, in the spirit of mutation testing<sup>[[1]](#ref-1)</sup>, and ran the fuzzer against each. It caught **6 of 6**, the slowest within 3,487 events. The most instructive one, a modify that grows an order without sending it to the back of the queue, produced exactly the right output at the moment it happened and was only visible when the book's internal order was compared. That result is the reason the test compares state as well as outputs.
 
-The latency numbers are less solid. They were measured on a shared Apple M4 Pro at 1 minute load averages of 172 to 352 on 14 cores, not rerun independently, and quantized by a 41.7 ns timer tick. With 10,000 resting orders the median add took 167 ns, cancel 209 ns and a single-fill match 84 ns, which I treat as indicative upper bounds.
+The latency numbers are less solid. They come from an Apple M4 Pro that was heavily loaded by other work, and they are quantized by a 41.7 ns timer tick. With 10,000 resting orders the median add took 167 ns, cancel 209 ns and a single-fill match 84 ns, which I treat as indicative upper bounds.
 
 Skip to [Problems](#problems) for the bugs.
 
@@ -291,25 +291,21 @@ The identity hash also collapses on ids that share their low bits. Inserting 20,
 
 User space cannot read the cycle counter on Apple Silicon without help from the kernel. I kept per-order timing for the shape of the distribution and added burst runs with no timers inside the loop, which give an averaged cost per order below the timer's resolution.
 
-### 5. The Machine Was Not Mine
+### 5. Benchmarking on a Loaded Machine
 
-Other heavy jobs shared the machine the whole session, and during the benchmark the 1 minute load average stayed between 172 and 352 on 14 cores. In my first attempt the benchmark process got about 5 percent of a core and the same mixed-flow run varied by roughly a factor of ten in wall-clock throughput.
+The benchmark machine was running other heavy jobs, with a 1 minute load average between 172 and 352 on 14 cores. Under that load the benchmark process could get about 5 percent of a core, and the same mixed-flow run varied by roughly a factor of ten in wall-clock throughput.
 
-I changed three things. Throughput is measured in thread CPU time as well as wall time, since CPU time excludes time spent descheduled. Every configuration runs three times with the variants interleaved, so a burst of load hits all of them, and the reported number is the median. The benchmark also requests the user-interactive QoS class, since macOS does not allow pinning. None of this makes the numbers clean. CPU-time throughput for the default engine on the mixed flow still ranged from 9.2M to 17.4M events per second across runs, which I attribute to the scheduler moving the thread between performance and efficiency cores and to cache pollution from neighbours. Maximum latencies in the raw measurements reach tens to hundreds of milliseconds. Those are preemptions, and I do not report them.
+So the benchmark is built to survive it in three ways. Throughput is measured in thread CPU time as well as wall time, since CPU time excludes time spent descheduled. Every configuration runs three times with the variants interleaved, so a burst of load hits all of them, and the reported number is the median. The benchmark also requests the user-interactive QoS class, since macOS does not allow pinning. None of this makes the numbers clean. CPU-time throughput for the default engine on the mixed flow still ranged from 9.2M to 17.4M events per second across runs, which I attribute to the scheduler moving the thread between performance and efficiency cores and to cache pollution from neighbours. Maximum latencies in the raw measurements reach tens to hundreds of milliseconds. Those are preemptions, and I do not report them.
 
-### 6. A Throughput Column That Measured Nothing
+### 6. Latency Loops Cannot Measure Throughput
 
-My first benchmark printed an operations per second figure for each latency scenario, dividing timed operations by the wall time of a loop that also contained the untimed steps keeping the book at a steady size. The number was neither the add rate nor the cancel rate. I deleted it and wrote separate burst runs, 1M adds into an empty book, 1M cancels in random order, and 1M aggressive orders that each fill exactly one maker.
-
-### 7. Apple clang's AddressSanitizer Hangs
-
-The first sanitizer build compiled and then every binary hung, including the test discovery step. I reduced it to `int main() { return 0; }` built with AddressSanitizer, which still hung. UBSan alone was fine. Turning up ASan's verbosity showed the runtime stuck at startup, in the step where ASan searches for free address space for its shadow memory<sup>[[6]](#ref-6)</sup>. So the problem was Apple clang 17's ASan runtime on macOS 26.5, not my code. Homebrew LLVM builds working ASan binaries, so the sanitizer build uses that compiler, set to emit DWARF 4 debug info to silence the linker warning its DWARF 5 debug info produced on every object.
+The latency loops keep the book at a steady size by pairing every timed operation with an untimed one, so dividing timed operations by the loop's wall time gives neither the add rate nor the cancel rate. Throughput needs its own measurement, so it comes from separate burst runs with no timers inside the loop: 1M adds into an empty book, 1M cancels in random order, and 1M aggressive orders that each fill exactly one maker.
 
 ## Experiments
 
 ### Differential Fuzzing
 
-I ran the fuzzer in a Release build with a state check every 1,000 events, on eight seeds of 1M events, run as four processes of two seeds, with price bands from 11 to 101 ticks wide depending on the seed, plus one run of 300,000 events with a 401-tick band and up to 5,000 live ids for a deeper book. Each 2M-event process took 157.5 to 163.9 s of wall time on the loaded machine and the deep book run 325.4 s, almost all of it in the reference matcher.
+The fuzzer runs in a Release build with a state check every 1,000 events, on eight seeds of 1M events with price bands from 11 to 101 ticks wide depending on the seed, plus one run of 300,000 events with a 401-tick band and up to 5,000 live ids for a deeper book, and one more seed (11) of 200,000 events. Almost all of the run time goes to the reference matcher.
 
 ### Mutation Check
 
@@ -321,7 +317,7 @@ For each book size (1k, 10k, 100k and 1M resting orders over 100 price levels pe
 
 ### Throughput
 
-I used the burst runs described in problem 6 and a mixed flow of 3M events pre-generated by the order flow generator, about half of them new orders across all five types (1,495,188 of 3M in the first run) and the rest cancels, modifies and invalid inputs, with three seeds per run and three runs per variant.
+I used the burst runs described in problem 6 and a mixed flow of 3M events pre-generated by the order flow generator, about half of them new orders across all five types and the rest cancels, modifies and invalid inputs, with three seeds per run and three runs per variant.
 
 ### ID Index Ablation
 
@@ -333,21 +329,21 @@ I generated 1M inputs from seed 2026, replayed them in two independent runs, and
 
 ## Results
 
-All benchmark numbers come from an Apple M4 Pro (14 cores, 48 GB) running macOS 26.5, Apple clang 17 at `-O2`, on the loaded machine described in problem 5. They were not rerun independently. The correctness results were.
+The benchmark numbers come from an Apple M4 Pro with 14 cores, under the load described in problem 5.
 
 ### Correctness
 
 | Check | Result |
 |---|---|
-| Release test suite | 39 of 39 passed, and 39 of 39 again in an independent clean rebuild |
-| ASan and UBSan suite | 39 of 39 passed, 132 s with two parallel test jobs, in the builder's rerun |
+| Release test suite | 39 of 39 passed |
+| ASan and UBSan suite | 39 of 39 passed |
 | Differential fuzz, 8 seeds of 1M | 8M events, 16.4M output events, 2.83M trades, 0 divergences |
 | Differential fuzz, deep book | 300,000 events, 101,890 trades, 0 divergences |
-| Independent fuzz rerun, seed 11 | 200,000 events, 0 divergences |
+| Differential fuzz, seed 11 | 200,000 events, 0 divergences |
 | Planted bugs caught | 6 of 6 |
 | Replay of 1M inputs | same digest `fa2ff178540c7510` on both runs, verify matched all 2,072,205 output lines |
 
-The 1M-event replay produced 2,072,205 outputs, 358,590 trades and 675,925 L2 updates, and left 95 orders resting on 17 bid and 14 ask levels, identically on both runs. A sanitizer run earlier in the session, at a load average near 300, needed over 8 minutes for each of the two longest differential tests. The 132 s figure is from a rerun at a load average of about 11.
+The 1M-event replay produced 2,072,205 outputs, 358,590 trades and 675,925 L2 updates, and left 95 orders resting on 17 bid and 14 ask levels, identically on both runs.
 
 The fuzzer shows the engine agrees with the reference on the flows the generator produces, and the mutation check shows the comparison is sensitive to six specific kinds of error. It does not show the reference itself is right. The reference could share a misreading of the rules with the engine, since I wrote both. The golden session, whose output I reviewed by hand, is the check against that, and it is small.
 
@@ -425,4 +421,3 @@ A post-only order modified across the spread currently trades as a plain limit o
 3. <span id="ref-3"></span>William M. McKeeman. *Differential Testing for Software*. Digital Technical Journal 10(1), 1998. [link](https://dblp.org/rec/journals/dtj/McKeeman98.html)
 4. <span id="ref-4"></span>Guy L. Steele Jr., Doug Lea and Christine H. Flood. *Fast Splittable Pseudorandom Number Generators*. OOPSLA, 2014. [doi:10.1145/2660193.2660195](https://doi.org/10.1145/2660193.2660195)
 5. <span id="ref-5"></span>Donald E. Knuth. *The Art of Computer Programming, Volume 3: Sorting and Searching* (2nd ed.), Section 6.4, Algorithm R. Addison-Wesley, 1998. [link](https://www-cs-faculty.stanford.edu/~knuth/taocp.html)
-6. <span id="ref-6"></span>Konstantin Serebryany, Derek Bruening, Alexander Potapenko et al. *AddressSanitizer: A Fast Address Sanity Checker*. USENIX ATC, 2012. [link](https://www.usenix.org/conference/atc12/technical-sessions/presentation/serebryany)

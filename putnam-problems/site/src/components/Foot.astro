@@ -1,0 +1,37 @@
+---
+import { SUBJECTS } from "../lib/data";
+---
+
+<footer class="foot">
+  <div class="foot-inner">
+    <div>
+      <div>
+        Problems from the <a href="https://kskedlaya.org/putnam-archive/">Kedlaya Putnam Archive</a>,
+        rendered with KaTeX.
+      </div>
+      <div>
+        Subject tags and difficulty ratings are editorial judgements, not official.
+      </div>
+      <div>
+        Also here: <a href="/courses/18-314">MIT 18.314 Combinatorial Analysis</a> problem sets
+        (Fall 2014, Richard Stanley), from <a href="https://ocw.mit.edu/">MIT OpenCourseWare</a>.
+      </div>
+      <div>
+        <a href="/courses/math115">Berkeley Math 115 Introduction to Number Theory</a>
+        assignments and exams (four semesters, <a href="https://math.berkeley.edu/~ribet/115/">Kenneth A. Ribet</a>).
+      </div>
+      <div>
+        <a href="/courses/mas210">KAIST MAS210 Elementary Number Theory</a> problem sets, keyed to Burton's
+        Elementary Number Theory, 7th edition.
+      </div>
+      <div>
+        And <a href="/easy">Easy Putnam Problems</a>, Miguel A. Lerma's list of the unusually approachable ones.
+      </div>
+    </div>
+    <nav>
+      {SUBJECTS.map((s) => (
+        <div><a href={`/subject/${s.slug}`} style={`color:var(${s.css})`}>{s.label}</a></div>
+      ))}
+    </nav>
+  </div>
+</footer>

@@ -1,0 +1,3 @@
+Your challenge is to examine the data and make suggestions to help CourseKata improve the student experience of learning statistics. Your suggestions might be directed to the CourseKata team, and include observations about patterns of engagement, stumbling points, clear successes, missing features, etc.  Or they might be directed to students or their classroom instructors and suggest learning strategies that the data signal are underutilized (or are particularly successful).
+
+`read.csv` = 

@@ -2,7 +2,7 @@
 layout: post
 title: "Trial Emulation With a Critic That Guards Time Zero"
 tab_title: Clinova
-code: https://github.com/SadeekFarhan21/projects/tree/main/clinova-trial-emulation
+code: https://github.com/SadeekFarhan21/projects.farhansadeek.com/tree/main/clinova-trial-emulation
 date: 2026-01-25 16:41:36
 tags:
   - llm-agents
@@ -25,7 +25,7 @@ Target trial emulation asks for discipline that is easy to state and easy to bre
 
 The idea of Clinova was to let language models do the drafting and make a second model do the checking. A researcher puts a clinical question in plain English on one end and gets runnable analysis code on the other, with a written rubric in between so the critic checks the design against something other than its own taste.
 
-We picked five published contrast-nephropathy trials as benchmark targets, so that the pipeline's designs could be compared with designs real investigators had already committed to. Barrett is the one this post follows end to end. Praneel Patel added the Barrett run folder this post reads from, along with the example folders for the website. My part was the `GET /api/examples` endpoint in `server.py` and the frontend integration and UI.
+We picked five published contrast-nephropathy trials as benchmark targets, so that the pipeline's designs could be compared with designs real investigators had already committed to. Barrett is the one this post follows end to end. Praneel Patel put together the Barrett run and the other examples the website shows. My part was the `GET /api/examples` endpoint that serves them and the frontend integration and UI.
 
 ## Technical Details
 
@@ -135,13 +135,11 @@ So the loop converged, and it needed all three rounds, because the revision that
 
 ## Results
 
-The numbers below come from `analysis/summarize_barrett_run.py`, a small offline script I wrote that parses the Barrett artifacts: stage durations from the timestamps in `run_log.txt`, validator issues per iteration from the JSON blocks in `step2b_validation_feedback.txt`, and match types and confidences from `step2c_omop_results.csv`. It writes `results/barrett_run_summary.json`.
-
 ### Where the Time Goes
 
 <figure data-figure="chart:projects/clinova-trial-emulation/clinova-trial-emulation-stage-time"></figure>
 
-The run took 837 seconds, from 04:29:47 to 04:43:44 on 2026-01-25. **The validation loop was 490 seconds of that, about 59 percent**, over three iterations of 216, 221 and 53 seconds. Iterations 1 and 2 each include a design revision, and iteration 3 is a validate call alone, so a lone validate takes about 53 seconds. The design agent took 173 seconds, the question agent 87, the code agent 81, and the OMOP lookup 6, because it's a local lookup with no model call. **The validate-and-revise loop is the most expensive stage in the pipeline.**
+The run took 837 seconds end to end. **The validation loop was 490 seconds of that, about 59 percent**, over three iterations of 216, 221 and 53 seconds. Iterations 1 and 2 each include a design revision, and iteration 3 is a validate call alone, so a lone validate takes about 53 seconds. The design agent took 173 seconds, the question agent 87, the code agent 81, and the OMOP lookup 6, because it's a local lookup with no model call. **The validate-and-revise loop is the most expensive stage in the pipeline.**
 
 ### The Validator Converged in Three Rounds
 
@@ -153,7 +151,7 @@ Iteration 1 returned four issues, three CRITICAL and one WARNING. Iteration 2 re
 
 <figure data-figure="chart:projects/clinova-trial-emulation/clinova-trial-emulation-top1-matches"></figure>
 
-Of the 20 query terms in the results file, 6 were exact name matches, 5 exact synonym matches and 9 fuzzy name matches. **Fourteen top-ranked hits have confidence of at least 0.95**, and the two contrast agents at the center of the trial, iodixanol and iopamidol, both resolve exactly to their RxNorm concepts.
+Of the 20 query terms in the Barrett lookup, 6 were exact name matches, 5 exact synonym matches and 9 fuzzy name matches. **Fourteen top-ranked hits have confidence of at least 0.95**, and the two contrast agents at the center of the trial, iodixanol and iopamidol, both resolve exactly to their RxNorm concepts.
 
 ## What I Would Change
 

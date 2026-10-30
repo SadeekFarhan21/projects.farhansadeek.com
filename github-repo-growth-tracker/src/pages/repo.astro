@@ -1,0 +1,1516 @@
+---
+import Base from '../layouts/Base.astro';
+---
+
+<Base title="Repo Signal Analysis" active="repo">
+  <div id="loading" class="msg-cell" style="padding:48px 0; text-align:center; color:#8b949e;">Analyzing repo&hellip;</div>
+  <div id="repo-detail" hidden>
+    <!-- Header -->
+    <div class="repo-header">
+      <div class="repo-title-row">
+        <h1 id="repo-full-name"></h1>
+        <button id="watch-btn" class="watchlist-btn" style="font-size:22px;">☆</button>
+        <a id="gh-link" href="#" target="_blank" rel="noreferrer" class="gh-button">View on GitHub ↗</a>
+      </div>
+      <p id="repo-desc" class="repo-desc"></p>
+      <div id="repo-topics" class="repo-topics"></div>
+      <div class="repo-meta-row" id="repo-meta-row"></div>
+    </div>
+
+    <!-- Verdict Banner -->
+    <div id="verdict-banner" class="verdict-banner"></div>
+
+    <!-- Signal Cards -->
+    <div class="signal-grid" id="signal-grid"></div>
+
+    <!-- Momentum Model Breakdown -->
+    <div class="detail-table-section" id="momentum-section" hidden>
+      <h2>Deal Flow Signal</h2>
+      <p class="subtitle" style="margin-bottom:12px;">Open-source freemium deal flow model — ratio-based growth rate × target zone × quality filters.</p>
+      <div class="signal-grid" id="momentum-grid"></div>
+    </div>
+
+    <!-- Investment Thesis -->
+    <div class="thesis-section" id="thesis-section">
+      <h2>Investment Thesis</h2>
+      <div class="thesis-box">
+        <div class="thesis-label">Why this matters</div>
+        <ul class="thesis-bullets" id="thesis-list"></ul>
+      </div>
+    </div>
+
+    <!-- Red Flags / Green Flags -->
+    <div class="red-flags-section" id="flags-section">
+      <h2>Signal Checklist</h2>
+      <div class="flag-list" id="flag-list"></div>
+    </div>
+
+    <!-- Two-column: Chart + Activity -->
+    <div class="two-col">
+      <div class="two-col-main">
+        <div class="chart-section">
+          <div class="chart-header">
+            <h2>Star History</h2>
+            <div class="chart-tabs">
+              <button class="chart-tab active" data-chart="line">Growth</button>
+              <button class="chart-tab" data-chart="bar">Daily Change</button>
+            </div>
+          </div>
+          <div class="chart-container">
+            <canvas id="star-chart"></canvas>
+          </div>
+        </div>
+      </div>
+      <div class="two-col-side">
+        <div class="activity-section" id="activity-section">
+          <h2>Activity Signals</h2>
+          <div id="activity-list" class="activity-list"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Competitive Landscape -->
+    <div class="detail-table-section" id="comp-section" hidden>
+      <h2>Similar Repos (by topic)</h2>
+      <p class="subtitle" style="margin-bottom:12px;">Other repos in the same space — see how this one stacks up.</p>
+      <div class="comp-grid" id="comp-grid"></div>
+    </div>
+
+    <!-- Growth Breakdown -->
+    <div class="detail-table-section">
+      <h2>Growth Breakdown</h2>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th style="text-align:left">Period</th>
+              <th class="num">Stars gained</th>
+              <th class="num">Growth rate</th>
+              <th class="num">Stars/day</th>
+              <th style="text-align:left">Trend</th>
+            </tr>
+          </thead>
+          <tbody id="growth-body"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Daily Metrics Table -->
+    <div class="detail-table-section">
+      <h2>Raw Snapshots</h2>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th style="text-align:left">Date</th>
+              <th class="num">Stars</th>
+              <th class="num">Forks</th>
+              <th class="num">Change</th>
+            </tr>
+          </thead>
+          <tbody id="daily-body"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- AI Chat Panel -->
+    <div class="ai-chat-panel ai-chat-collapsed" id="ai-chat-panel">
+      <div class="ai-chat-header" id="ai-chat-header">
+        <span class="ai-chat-header-left">
+          <span class="ai-chat-icon">&#9670;</span>
+          <span class="ai-chat-title">Ask AI about this repo</span>
+        </span>
+        <span class="ai-chat-toggle" id="ai-chat-toggle">&#9650;</span>
+      </div>
+      <div class="ai-chat-body" id="ai-chat-body">
+        <div class="ai-chat-chips" id="ai-chat-chips">
+          <button class="ai-chat-chip" data-q="Is this a good investment opportunity?">Good investment?</button>
+          <button class="ai-chat-chip" data-q="What are the biggest risks with this repo?">Biggest risks?</button>
+          <button class="ai-chat-chip" data-q="What does the growth trajectory look like?">Growth trajectory?</button>
+          <button class="ai-chat-chip" data-q="How do the metrics compare to similar repos?">How do metrics compare?</button>
+          <button class="ai-chat-chip" data-q="What would make this a strong buy signal?">What would make it a buy?</button>
+        </div>
+        <div class="ai-chat-messages" id="ai-chat-messages"></div>
+        <div class="ai-chat-input-row">
+          <input type="text" class="ai-chat-input" id="ai-chat-input" placeholder="Ask anything about this repo…" autocomplete="off" />
+          <button class="ai-chat-send" id="ai-chat-send" disabled>&#9654;</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="error-box" class="error-box" hidden></div>
+
+  <script>
+    import { createClient } from '@supabase/supabase-js';
+
+    const supabaseUrl = import.meta.env.PUBLIC_SUPABASE_URL;
+    const supabaseAnonKey = import.meta.env.PUBLIC_SUPABASE_ANON_KEY;
+    const fmt = new Intl.NumberFormat('en-US');
+    const pct = (v: number) => v.toFixed(1) + '%';
+
+    const params = new URLSearchParams(window.location.search);
+    const owner = params.get('owner');
+    const name = params.get('name');
+
+    const loadingEl = document.getElementById('loading')!;
+    const detailEl = document.getElementById('repo-detail')!;
+    const errorEl = document.getElementById('error-box')!;
+
+    // Watchlist helpers
+    function getWatchlist(): string[] {
+      try { return JSON.parse(localStorage.getItem('repo_watchlist') || '[]'); } catch { return []; }
+    }
+    function toggleWatch(repoKey: string) {
+      const wl = getWatchlist();
+      const idx = wl.indexOf(repoKey);
+      if (idx >= 0) wl.splice(idx, 1); else wl.push(repoKey);
+      localStorage.setItem('repo_watchlist', JSON.stringify(wl));
+    }
+    function isWatched(repoKey: string): boolean {
+      return getWatchlist().includes(repoKey);
+    }
+
+    function showError(msg: string) {
+      loadingEl.hidden = true;
+      errorEl.hidden = false;
+      errorEl.textContent = msg;
+    }
+
+    function delta(v: number): string {
+      return v > 0 ? `+${fmt.format(v)}` : fmt.format(v);
+    }
+    function cls(v: number): string {
+      if (v > 0) return 'positive';
+      if (v < 0) return 'negative';
+      return 'neutral';
+    }
+
+    if (!owner || !name) {
+      showError('Missing repo owner or name.');
+    } else {
+      (async () => {
+        try {
+          // 1. Growth metrics from static JSON
+          let growth: any = null;
+          let allReposData: any[] = [];
+          try {
+            const jsonResp = await fetch('/data/repos.json');
+            if (jsonResp.ok) {
+              const json = await jsonResp.json();
+              allReposData = json.repos || [];
+              const found = allReposData.find((r: any) => r.o === owner && r.n === name);
+              if (found) {
+                growth = {
+                  repo_owner: found.o,
+                  repo_name: found.n,
+                  repo_url: found.u,
+                  current_stars: found.s,
+                  current_forks: found.f,
+                  one_day_stars: found.d1s,
+                  seven_day_stars: found.d7s,
+                  one_month_stars: found.d1ms,
+                  three_month_stars: found.d3ms,
+                  one_day_forks: found.d1f,
+                  seven_day_forks: found.d7f,
+                  one_month_forks: found.d1mf,
+                  three_month_forks: found.d3mf,
+                };
+              }
+            }
+          } catch { /* JSON not available, will try Supabase fallback */ }
+
+          // Fallback to Supabase if JSON didn't have the repo
+          if (!growth && supabaseUrl && supabaseAnonKey) {
+            const sb = createClient(supabaseUrl, supabaseAnonKey, { auth: { persistSession: false } });
+            const { data: gData } = await sb
+              .from('repo_growth_metrics')
+              .select('*')
+              .eq('repo_owner', owner)
+              .eq('repo_name', name)
+              .single();
+            if (gData) growth = gData;
+          }
+
+          if (!growth) {
+            showError(`Repo ${owner}/${name} not found in growth metrics.`);
+            return;
+          }
+
+          // 2. Daily snapshots (still from Supabase — not in JSON)
+          let dailySnapshots: { collected_on: string; stars: number; forks: number }[] = [];
+          if (supabaseUrl && supabaseAnonKey) {
+            const supabase = createClient(supabaseUrl, supabaseAnonKey, { auth: { persistSession: false } });
+            const { data: tracked } = await supabase
+              .from('tracked_repos')
+              .select('id')
+              .eq('repo_owner', owner)
+              .eq('repo_name', name)
+              .single();
+
+            if (tracked) {
+              const { data: daily } = await supabase
+                .from('repo_daily_metrics')
+                .select('collected_on, stars, forks')
+                .eq('tracked_repo_id', tracked.id)
+                .order('collected_on', { ascending: true });
+              dailySnapshots = daily || [];
+            }
+          }
+
+          // 3. GitHub API — repo info + recent activity
+          let ghInfo: any = null;
+          let recentCommits: any[] = [];
+          let contributors: any[] = [];
+          let openPRs = 0;
+          let recentReleases: any[] = [];
+
+          try {
+            const ghHeaders = { 'Accept': 'application/vnd.github+json' };
+            const [repoResp, commitsResp, contribResp, prResp, releasesResp] = await Promise.allSettled([
+              fetch(`https://api.github.com/repos/${owner}/${name}`, { headers: ghHeaders }),
+              fetch(`https://api.github.com/repos/${owner}/${name}/commits?per_page=30`, { headers: ghHeaders }),
+              fetch(`https://api.github.com/repos/${owner}/${name}/contributors?per_page=10`, { headers: ghHeaders }),
+              fetch(`https://api.github.com/repos/${owner}/${name}/pulls?state=open&per_page=1`, { headers: ghHeaders }),
+              fetch(`https://api.github.com/repos/${owner}/${name}/releases?per_page=5`, { headers: ghHeaders }),
+            ]);
+
+            if (repoResp.status === 'fulfilled' && repoResp.value.ok)
+              ghInfo = await repoResp.value.json();
+            if (commitsResp.status === 'fulfilled' && commitsResp.value.ok)
+              recentCommits = await commitsResp.value.json();
+            if (contribResp.status === 'fulfilled' && contribResp.value.ok)
+              contributors = await contribResp.value.json();
+            if (prResp.status === 'fulfilled' && prResp.value.ok) {
+              const prData = await prResp.value.json();
+              openPRs = prData.length;
+            }
+            if (releasesResp.status === 'fulfilled' && releasesResp.value.ok)
+              recentReleases = await releasesResp.value.json();
+          } catch { /* non-critical */ }
+
+          // ── Compute investment signals ──
+          const stars = growth.current_stars;
+          const forks = growth.current_forks;
+          const d1 = growth.one_day_stars;
+          const d7 = growth.seven_day_stars;
+          const d1m = growth.one_month_stars;
+          const d3m = growth.three_month_stars;
+
+          const rate7d = stars > 0 ? (d7 / stars) * 100 : 0;
+          const rate1m = stars > 0 ? (d1m / stars) * 100 : 0;
+          const rate3m = stars > 0 ? (d3m / stars) * 100 : 0;
+
+          const weeklyFrom1m = d1m > 0 ? d1m / 4.3 : 0;
+          const acceleration = weeklyFrom1m > 0 ? ((d7 / weeklyFrom1m) - 1) * 100 : 0;
+
+          const starsPerDay7d = d7 / 7;
+          const starsPerDay1m = d1m / 30;
+          const starsPerDay3m = d3m / 90;
+
+          const projected6m = Math.round(stars + starsPerDay7d * 180);
+
+          const createdAt = ghInfo?.created_at ? new Date(ghInfo.created_at) : null;
+          const ageMonths = createdAt ? Math.max(1, Math.round((Date.now() - createdAt.getTime()) / (30.44 * 24 * 60 * 60 * 1000))) : null;
+          const starsPerMonth = ageMonths ? Math.round(stars / ageMonths) : null;
+
+          const lastCommitDate = recentCommits[0]?.commit?.author?.date
+            ? new Date(recentCommits[0].commit.author.date) : null;
+          const daysSinceCommit = lastCommitDate
+            ? Math.round((Date.now() - lastCommitDate.getTime()) / (24*60*60*1000)) : null;
+
+          const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+          const commitsLast30d = recentCommits.filter(c => {
+            const d = c.commit?.author?.date;
+            return d && new Date(d) >= thirtyDaysAgo;
+          }).length;
+
+          const lastRelease = recentReleases[0];
+          const lastReleaseDate = lastRelease?.published_at ? new Date(lastRelease.published_at) : null;
+          const daysSinceRelease = lastReleaseDate
+            ? Math.round((Date.now() - lastReleaseDate.getTime()) / (24*60*60*1000)) : null;
+
+          const forkStarRatio = stars > 0 ? (forks / stars) * 100 : 0;
+
+          // Number of unique contributors
+          const numContributors = contributors.length;
+
+          // ── Verdict scoring ──
+          type Signal = { positive: boolean; weight: number; label: string };
+          const signals: Signal[] = [];
+
+          if (rate7d > 2) signals.push({ positive: true, weight: 3, label: 'Strong weekly growth rate' });
+          else if (rate7d > 0.5) signals.push({ positive: true, weight: 1, label: 'Moderate weekly growth' });
+          else signals.push({ positive: false, weight: 1, label: 'Low weekly growth' });
+
+          if (acceleration > 20) signals.push({ positive: true, weight: 3, label: 'Rapid acceleration' });
+          else if (acceleration > 0) signals.push({ positive: true, weight: 1, label: 'Slight acceleration' });
+          else if (acceleration < -30) signals.push({ positive: false, weight: 2, label: 'Decelerating fast' });
+
+          if (daysSinceCommit !== null && daysSinceCommit <= 7) signals.push({ positive: true, weight: 2, label: 'Recent commits (active dev)' });
+          else if (daysSinceCommit !== null && daysSinceCommit > 90) signals.push({ positive: false, weight: 3, label: 'Stale — no commits in 90+ days' });
+
+          if (commitsLast30d >= 10) signals.push({ positive: true, weight: 2, label: 'High commit frequency' });
+          else if (commitsLast30d === 0) signals.push({ positive: false, weight: 2, label: 'Zero commits this month' });
+
+          if (ageMonths && ageMonths <= 12 && stars >= 500) signals.push({ positive: true, weight: 3, label: 'Young repo with strong traction' });
+          if (ageMonths && ageMonths <= 6 && stars >= 1000) signals.push({ positive: true, weight: 3, label: 'Explosive early growth' });
+
+          // Contributor diversity
+          if (numContributors >= 5) signals.push({ positive: true, weight: 2, label: 'Multiple contributors (not solo project)' });
+          else if (numContributors <= 1) signals.push({ positive: false, weight: 1, label: 'Single contributor — bus factor risk' });
+
+          // Fork engagement
+          if (forkStarRatio > 20) signals.push({ positive: true, weight: 1, label: 'High fork ratio — devs building on it' });
+
+          const totalWeight = signals.reduce((s, x) => s + x.weight, 0);
+          const positiveWeight = signals.filter(s => s.positive).reduce((s, x) => s + x.weight, 0);
+          const score = totalWeight > 0 ? (positiveWeight / totalWeight) * 100 : 50;
+
+          let verdictLevel: string;
+          let verdictText: string;
+          let verdictDesc: string;
+
+          if (score >= 75) {
+            verdictLevel = 'strong';
+            verdictText = 'Strong breakout signal';
+            verdictDesc = 'Multiple indicators of rapid, accelerating growth with active development. Worth a deep look for investment.';
+          } else if (score >= 55) {
+            verdictLevel = 'moderate';
+            verdictText = 'Moderate growth signal';
+            verdictDesc = 'Growing steadily with some positive signals. Monitor for acceleration before committing.';
+          } else if (score >= 35) {
+            verdictLevel = 'weak';
+            verdictText = 'Weak signal';
+            verdictDesc = 'Limited growth indicators. May be stable but not showing breakout potential right now.';
+          } else {
+            verdictLevel = 'none';
+            verdictText = 'No breakout signal';
+            verdictDesc = 'Not showing meaningful growth momentum. Could be dormant or fully mature.';
+          }
+
+          // ── Render everything ──
+          loadingEl.hidden = true;
+          detailEl.hidden = false;
+
+          document.title = `${owner}/${name} — Signal Analysis`;
+
+          // Header
+          const fullNameEl = document.getElementById('repo-full-name')!;
+          const ownerSpan = document.createElement('span');
+          ownerSpan.className = 'repo-owner-part';
+          ownerSpan.textContent = owner + '/';
+          const nameSpan = document.createElement('span');
+          nameSpan.textContent = name;
+          fullNameEl.appendChild(ownerSpan);
+          fullNameEl.appendChild(nameSpan);
+
+          // Watchlist button
+          const repoKey = `${owner}/${name}`;
+          const watchBtn = document.getElementById('watch-btn')!;
+          watchBtn.textContent = isWatched(repoKey) ? '\u2605' : '\u2606';
+          watchBtn.classList.toggle('watched', isWatched(repoKey));
+          watchBtn.addEventListener('click', () => {
+            toggleWatch(repoKey);
+            watchBtn.textContent = isWatched(repoKey) ? '\u2605' : '\u2606';
+            watchBtn.classList.toggle('watched', isWatched(repoKey));
+          });
+
+          (document.getElementById('gh-link') as HTMLAnchorElement).href = `https://github.com/${owner}/${name}`;
+
+          const descEl = document.getElementById('repo-desc')!;
+          if (ghInfo?.description) descEl.textContent = ghInfo.description;
+          else descEl.style.display = 'none';
+
+          const topicsEl = document.getElementById('repo-topics')!;
+          if (ghInfo?.topics?.length) {
+            for (const t of ghInfo.topics.slice(0, 10)) {
+              const tag = document.createElement('span');
+              tag.className = 'topic-tag';
+              tag.textContent = t;
+              topicsEl.appendChild(tag);
+            }
+          }
+
+          const metaRow = document.getElementById('repo-meta-row')!;
+          const metaItems: string[] = [];
+          if (ghInfo?.language) metaItems.push(ghInfo.language);
+          if (ghInfo?.license?.spdx_id && ghInfo.license.spdx_id !== 'NOASSERTION')
+            metaItems.push(ghInfo.license.spdx_id);
+          if (ageMonths) metaItems.push(`${ageMonths} months old`);
+          if (ghInfo?.open_issues_count !== undefined)
+            metaItems.push(`${fmt.format(ghInfo.open_issues_count)} open issues`);
+          if (numContributors > 0)
+            metaItems.push(`${numContributors}+ contributors`);
+          metaRow.innerHTML = metaItems
+            .map(item => `<span class="repo-meta-item">${item}</span>`)
+            .join('');
+
+          // Verdict banner
+          const verdictEl = document.getElementById('verdict-banner')!;
+          verdictEl.className = `verdict-banner verdict-${verdictLevel}`;
+          verdictEl.innerHTML = `
+            <div class="verdict-score">${Math.round(score)}</div>
+            <div class="verdict-text">
+              <strong>${verdictText}</strong>
+              <span>${verdictDesc}</span>
+            </div>
+          `;
+
+          // Signal cards
+          const signalGrid = document.getElementById('signal-grid')!;
+          const signalCards = [
+            {
+              label: 'Stars',
+              value: fmt.format(stars),
+              sub: starsPerMonth ? `~${fmt.format(starsPerMonth)}/mo avg` : '',
+            },
+            {
+              label: '7d Growth',
+              value: delta(d7),
+              sub: `${pct(rate7d)} of total`,
+              cls: cls(d7),
+            },
+            {
+              label: 'Acceleration',
+              value: acceleration > 0 ? `+${pct(acceleration)}` : pct(acceleration),
+              sub: acceleration > 20 ? 'Speeding up fast' : acceleration > 0 ? 'Speeding up' : acceleration < -10 ? 'Slowing down' : 'Steady',
+              cls: acceleration > 10 ? 'positive' : acceleration < -10 ? 'negative' : 'neutral',
+            },
+            {
+              label: '6mo Projection',
+              value: fmt.format(projected6m),
+              sub: `at ${starsPerDay7d.toFixed(0)} stars/day`,
+            },
+            {
+              label: '1 Month',
+              value: delta(d1m),
+              sub: `${pct(rate1m)} • ${starsPerDay1m.toFixed(1)}/day`,
+              cls: cls(d1m),
+            },
+            {
+              label: '3 Months',
+              value: delta(d3m),
+              sub: `${pct(rate3m)} • ${starsPerDay3m.toFixed(1)}/day`,
+              cls: cls(d3m),
+            },
+          ];
+
+          for (const s of signalCards) {
+            const card = document.createElement('div');
+            card.className = 'stat-card';
+            card.innerHTML = `
+              <div class="stat-label">${s.label}</div>
+              <div class="stat-value ${s.cls || ''}">${s.value}</div>
+              ${s.sub ? `<div class="stat-sub">${s.sub}</div>` : ''}
+            `;
+            signalGrid.appendChild(card);
+          }
+
+          // ── Momentum Model Breakdown ──
+          const d1f = growth.one_day_forks || 0;
+          const d7f = growth.seven_day_forks || 0;
+          const d1mf = growth.one_month_forks || 0;
+          const d3mf = growth.three_month_forks || 0;
+
+          // Step 1: Engagement (3x forks)
+          const E_total = stars + (3 * forks);
+          const E_1  = Math.max(0, d1  + (3 * d1f));
+          const E_7  = Math.max(0, d7  + (3 * d7f));
+          const E_30 = Math.max(0, d1m + (3 * d1mf));
+          const E_90 = Math.max(0, d3m + (3 * d3mf));
+
+          // Step 2: Ratio-based M_base — growth rate
+          const M_base = (0.75 * E_7 / (E_total + 1)) + (0.25 * E_30 / (E_total + 1));
+
+          // Step 3: Target Zone — hard cut <1k, sweet spot 1k-10k, R² >10k
+          let R_zone: number;
+          if (stars < 1000) R_zone = 0;
+          else if (stars <= 10000) R_zone = 1.0;
+          else R_zone = (10000 / stars) * (10000 / stars);
+
+          // Step 4: Quality filters
+          const H_1  = 1 - (0.4 * E_1 / (E_7 + 1));
+
+          const weeklyRatio = E_7 / (E_30 + 1);
+          const Q_s = weeklyRatio >= 0.25
+            ? Math.min(1.5, 1 + (weeklyRatio - 0.25))
+            : weeklyRatio / 0.25;
+
+          const monthlyRatio = E_30 / (E_90 + 1);
+          const C_90 = monthlyRatio >= 0.33
+            ? Math.min(1.5, 1 + (monthlyRatio - 0.33))
+            : monthlyRatio / 0.33;
+
+          // Step 5: Final Signal
+          const finalMomentum = Math.max(0, M_base * R_zone * H_1 * Q_s * C_90 * 10000);
+
+          const momentumSection = document.getElementById('momentum-section')!;
+          const momentumGrid = document.getElementById('momentum-grid')!;
+          momentumSection.hidden = false;
+
+          const fmtSignal = (v: number) => v >= 10 ? Math.round(v).toLocaleString() : v.toFixed(1);
+
+          const momentumCards = [
+            {
+              label: 'M_base (Growth Rate)',
+              value: (M_base * 100).toFixed(2) + '%',
+              sub: '75%×7D + 25%×30D ratio',
+              cls: M_base > 0.01 ? 'positive' : 'neutral',
+            },
+            {
+              label: 'Target Zone (R)',
+              value: R_zone.toFixed(3) + '×',
+              sub: stars >= 1000 && stars <= 10000 ? '🎯 Sweet spot (1k–10k)' : stars < 1000 ? '⛔ Below 1k — excluded' : `Above sweet spot (R²=${R_zone.toFixed(4)})`,
+              cls: R_zone >= 0.8 ? 'positive' : R_zone > 0 ? 'neutral' : 'negative',
+            },
+            {
+              label: 'Hype Penalty (H₁)',
+              value: H_1.toFixed(3) + '×',
+              sub: H_1 >= 0.9 ? 'Organic growth' : H_1 >= 0.7 ? 'Slight spike' : 'Heavy 1d spike',
+              cls: H_1 >= 0.8 ? 'positive' : H_1 >= 0.6 ? 'neutral' : 'negative',
+            },
+            {
+              label: 'Steadiness (Qₛ)',
+              value: Q_s.toFixed(3) + '×',
+              sub: Q_s >= 1.2 ? 'Surging this week' : Q_s >= 0.9 ? 'Steady weekly' : Q_s >= 0.5 ? 'Slowing weekly' : 'Stalled weekly',
+              cls: Q_s >= 1.0 ? 'positive' : Q_s >= 0.5 ? 'neutral' : 'negative',
+            },
+            {
+              label: 'Consistency (C₉₀)',
+              value: C_90.toFixed(3) + '×',
+              sub: C_90 >= 1.2 ? 'Accelerating vs 3M' : C_90 >= 0.9 ? 'Steady vs 3M' : C_90 >= 0.5 ? 'Slowing vs 3M' : C_90 > 0 ? 'Decelerating' : 'No 3M data',
+              cls: C_90 >= 1.0 ? 'positive' : C_90 >= 0.5 ? 'neutral' : 'negative',
+            },
+            {
+              label: 'Final Signal',
+              value: fmtSignal(finalMomentum),
+              sub: finalMomentum >= 20 ? '🔥 Hot signal' : finalMomentum >= 5 ? '🟡 Warm signal' : finalMomentum > 0 ? 'Mild signal' : 'No signal',
+              cls: finalMomentum >= 20 ? 'positive' : finalMomentum >= 5 ? 'neutral' : '',
+            },
+          ];
+
+          for (const mc of momentumCards) {
+            const card = document.createElement('div');
+            card.className = 'stat-card';
+            card.innerHTML = `
+              <div class="stat-label">${mc.label}</div>
+              <div class="stat-value ${mc.cls || ''}">${mc.value}</div>
+              ${mc.sub ? `<div class="stat-sub">${mc.sub}</div>` : ''}
+            `;
+            momentumGrid.appendChild(card);
+          }
+
+          // ── Investment Thesis ──
+          const thesisList = document.getElementById('thesis-list')!;
+          const thesisPoints: string[] = [];
+
+          if (ageMonths && ageMonths <= 12 && stars >= 1000) {
+            thesisPoints.push(`Gained ${fmt.format(stars)} stars in just ${ageMonths} months — rapid organic traction signals strong product-market fit.`);
+          } else if (stars >= 5000) {
+            thesisPoints.push(`${fmt.format(stars)} stars indicates established developer mindshare in this category.`);
+          }
+
+          if (d7 > 0 && acceleration > 20) {
+            thesisPoints.push(`Growth is accelerating — this week's pace is ${acceleration.toFixed(0)}% faster than the monthly average, suggesting a viral moment or inflection point.`);
+          } else if (d7 > 0 && acceleration > 0) {
+            thesisPoints.push(`Steady acceleration with ${delta(d7)} stars this week, growing ${acceleration.toFixed(0)}% faster than the monthly average.`);
+          }
+
+          if (starsPerDay7d >= 10) {
+            thesisPoints.push(`Gaining ~${starsPerDay7d.toFixed(0)} stars/day — projecting ${fmt.format(projected6m)} stars in 6 months at current velocity.`);
+          }
+
+          if (forkStarRatio > 15) {
+            thesisPoints.push(`Fork-to-star ratio of ${forkStarRatio.toFixed(0)}% suggests developers are actively building on this — a sign of platform potential.`);
+          }
+
+          if (numContributors >= 5 && commitsLast30d >= 10) {
+            thesisPoints.push(`Active development from ${numContributors}+ contributors with ${commitsLast30d}+ commits this month — not a one-person project.`);
+          }
+
+          if (daysSinceRelease !== null && daysSinceRelease <= 30) {
+            thesisPoints.push(`Recent release (${daysSinceRelease}d ago) indicates active maintenance and iteration cadence.`);
+          }
+
+          if (thesisPoints.length === 0) {
+            thesisPoints.push('Limited data for a strong thesis. Monitor growth trends over the next 2-4 weeks for clearer signals.');
+          }
+
+          for (const point of thesisPoints) {
+            const li = document.createElement('li');
+            li.textContent = point;
+            thesisList.appendChild(li);
+          }
+
+          // ── Red Flags / Green Flags ──
+          const flagList = document.getElementById('flag-list')!;
+          type Flag = { level: 'ok' | 'warning' | 'danger'; title: string; detail: string };
+          const flags: Flag[] = [];
+
+          // Green flags
+          if (daysSinceCommit !== null && daysSinceCommit <= 7) {
+            flags.push({ level: 'ok', title: 'Active development', detail: `Last commit ${daysSinceCommit === 0 ? 'today' : daysSinceCommit + 'd ago'}` });
+          }
+          if (numContributors >= 3) {
+            flags.push({ level: 'ok', title: 'Team project', detail: `${numContributors}+ contributors involved` });
+          }
+          if (acceleration > 10) {
+            flags.push({ level: 'ok', title: 'Accelerating growth', detail: `Weekly pace is ${acceleration.toFixed(0)}% above monthly average` });
+          }
+          if (ghInfo?.license?.spdx_id && ghInfo.license.spdx_id !== 'NOASSERTION') {
+            flags.push({ level: 'ok', title: 'Licensed', detail: `${ghInfo.license.spdx_id} — clear open-source terms` });
+          }
+          if (daysSinceRelease !== null && daysSinceRelease <= 60) {
+            flags.push({ level: 'ok', title: 'Regular releases', detail: `Latest release ${daysSinceRelease}d ago (${lastRelease?.tag_name || ''})` });
+          }
+
+          // Warnings
+          if (numContributors <= 1) {
+            flags.push({ level: 'warning', title: 'Solo developer', detail: 'Bus factor of 1 — risky if this person stops maintaining' });
+          }
+          if (daysSinceCommit !== null && daysSinceCommit > 30 && daysSinceCommit <= 90) {
+            flags.push({ level: 'warning', title: 'Development slowing', detail: `No commits in ${daysSinceCommit} days` });
+          }
+          if (acceleration < -30) {
+            flags.push({ level: 'warning', title: 'Growth decelerating', detail: `Weekly pace is ${Math.abs(acceleration).toFixed(0)}% below monthly average` });
+          }
+          if (!ghInfo?.license?.spdx_id || ghInfo.license.spdx_id === 'NOASSERTION') {
+            flags.push({ level: 'warning', title: 'No license', detail: 'Unclear licensing could deter enterprise adoption' });
+          }
+          if (ghInfo?.archived) {
+            flags.push({ level: 'danger', title: 'Archived repository', detail: 'This repo has been archived — no longer actively maintained' });
+          }
+
+          // Danger flags
+          if (daysSinceCommit !== null && daysSinceCommit > 90) {
+            flags.push({ level: 'danger', title: 'Potentially abandoned', detail: `No commits in ${daysSinceCommit} days — check if project is still alive` });
+          }
+          if (d7 < 0) {
+            flags.push({ level: 'danger', title: 'Losing stars', detail: `Lost ${Math.abs(d7)} stars this week — negative sentiment signal` });
+          }
+
+          // Sort: dangers first, then warnings, then ok
+          const flagOrder: Record<string, number> = { danger: 0, warning: 1, ok: 2 };
+          flags.sort((a, b) => flagOrder[a.level] - flagOrder[b.level]);
+
+          for (const f of flags) {
+            const item = document.createElement('div');
+            item.className = `flag-item flag-${f.level}`;
+            const icon = f.level === 'ok' ? '<span style="color:var(--green)">&#10003;</span>' : f.level === 'warning' ? '<span style="color:var(--amber)">!</span>' : '<span style="color:var(--red)">&#10007;</span>';
+            item.innerHTML = `
+              <span class="flag-icon">${icon}</span>
+              <div class="flag-text">
+                <strong>${f.title}</strong>
+                <span>${f.detail}</span>
+              </div>
+            `;
+            flagList.appendChild(item);
+          }
+
+          // Activity signals list
+          const actList = document.getElementById('activity-list')!;
+          const actItems: { icon: string; label: string; value: string; good: boolean | null }[] = [];
+
+          if (daysSinceCommit !== null) {
+            actItems.push({
+              icon: daysSinceCommit <= 7 ? 'positive' : daysSinceCommit > 90 ? 'negative' : 'neutral',
+              label: 'Last commit',
+              value: daysSinceCommit === 0 ? 'Today' : `${daysSinceCommit}d ago`,
+              good: daysSinceCommit <= 7,
+            });
+          }
+
+          actItems.push({
+            icon: commitsLast30d >= 10 ? 'positive' : commitsLast30d === 0 ? 'negative' : 'neutral',
+            label: 'Commits (30d)',
+            value: `${commitsLast30d}+`,
+            good: commitsLast30d >= 10,
+          });
+
+          if (daysSinceRelease !== null) {
+            actItems.push({
+              icon: daysSinceRelease <= 30 ? 'positive' : daysSinceRelease > 180 ? 'negative' : 'neutral',
+              label: 'Last release',
+              value: daysSinceRelease === 0 ? 'Today' : `${daysSinceRelease}d ago`,
+              good: daysSinceRelease <= 30,
+            });
+          }
+
+          if (lastRelease?.tag_name) {
+            actItems.push({ icon: 'neutral', label: 'Latest version', value: lastRelease.tag_name, good: null });
+          }
+
+          actItems.push({
+            icon: forkStarRatio > 15 ? 'positive' : 'neutral',
+            label: 'Fork ratio',
+            value: `${forkStarRatio.toFixed(1)}%`,
+            good: forkStarRatio > 15,
+          });
+
+          if (ghInfo?.subscribers_count !== undefined) {
+            actItems.push({ icon: 'neutral', label: 'Watchers', value: fmt.format(ghInfo.subscribers_count), good: null });
+          }
+
+          actItems.push({
+            icon: numContributors >= 5 ? 'positive' : numContributors <= 1 ? 'negative' : 'neutral',
+            label: 'Contributors',
+            value: `${numContributors}+`,
+            good: numContributors >= 5,
+          });
+
+          for (const item of actItems) {
+            const row = document.createElement('div');
+            row.className = 'activity-row';
+            const dot = item.good === true ? '<span style="color:var(--green)">&#9679;</span>' : item.good === false ? '<span style="color:var(--amber)">&#9679;</span>' : '<span style="color:var(--text-tertiary)">&#9679;</span>';
+            row.innerHTML = `
+              <span class="activity-dot">${dot}</span>
+              <span class="activity-label">${item.label}</span>
+              <span class="activity-value">${item.value}</span>
+            `;
+            actList.appendChild(row);
+          }
+
+          // ── Competitive Landscape (from static JSON) ──
+          if (allReposData.length > 0) {
+            const minStars = Math.max(100, Math.round(stars * 0.1));
+            const maxStars = stars * 10;
+
+            const similar = allReposData
+              .filter((r: any) =>
+                r.o !== owner &&
+                r.s >= minStars &&
+                r.s <= maxStars &&
+                r.d7s >= 1
+              )
+              .sort((a: any, b: any) => b.d7s - a.d7s)
+              .slice(0, 6);
+
+            if (similar.length > 0) {
+              const compSection = document.getElementById('comp-section')!;
+              const compGrid = document.getElementById('comp-grid')!;
+              compSection.hidden = false;
+
+              for (const s of similar) {
+                const card = document.createElement('div');
+                card.className = 'comp-card';
+                const rate = s.s > 0 ? (s.d7s / s.s * 100).toFixed(1) : '0.0';
+                card.innerHTML = `
+                  <div class="comp-card-name">
+                    <a href="/repo?owner=${encodeURIComponent(s.o)}&name=${encodeURIComponent(s.n)}">${s.o}/${s.n}</a>
+                  </div>
+                  <div class="comp-card-stats">
+                    <span>★ ${fmt.format(s.s)}</span>
+                    <span class="positive">+${fmt.format(s.d7s)} 7d</span>
+                    <span>${rate}%</span>
+                  </div>
+                `;
+                compGrid.appendChild(card);
+              }
+            }
+          }
+
+          // Growth breakdown table
+          const growthBody = document.getElementById('growth-body')!;
+          const periods = [
+            { label: '1 day', gained: d1, days: 1, prev: 0 },
+            { label: '7 days', gained: d7, days: 7, prev: weeklyFrom1m },
+            { label: '1 month', gained: d1m, days: 30, prev: d3m > 0 ? (d3m / 3) : 0 },
+            { label: '3 months', gained: d3m, days: 90, prev: 0 },
+          ];
+
+          for (const p of periods) {
+            const base = stars - p.gained;
+            const rate = base > 0 ? (p.gained / base) * 100 : (p.gained > 0 ? 999.9 : 0);
+            const perDay = p.gained / p.days;
+            let trend = '';
+            if (p.label === '7 days') {
+              if (acceleration > 20) trend = 'Accelerating fast';
+              else if (acceleration > 0) trend = 'Accelerating';
+              else if (acceleration > -10) trend = 'Steady';
+              else trend = 'Decelerating';
+            } else if (p.label === '1 month' && d3m > 0) {
+              const monthlyRate = d1m;
+              const avgMonthlyFrom3m = d3m / 3;
+              const mAccel = avgMonthlyFrom3m > 0 ? ((monthlyRate / avgMonthlyFrom3m) - 1) * 100 : 0;
+              if (mAccel > 20) trend = 'Accelerating';
+              else if (mAccel > -10) trend = 'Steady';
+              else trend = 'Decelerating';
+            }
+
+            const row = document.createElement('tr');
+            const labelTd = document.createElement('td');
+            labelTd.textContent = p.label;
+            labelTd.style.textAlign = 'left';
+            const gainedTd = document.createElement('td');
+            gainedTd.className = `num ${cls(p.gained)}`;
+            gainedTd.textContent = delta(p.gained);
+            const rateTd = document.createElement('td');
+            rateTd.className = `num ${cls(p.gained)}`;
+            rateTd.textContent = rate >= 999.9 ? 'New' : pct(rate);
+            const perDayTd = document.createElement('td');
+            perDayTd.className = 'num';
+            perDayTd.textContent = perDay.toFixed(1);
+            const trendTd = document.createElement('td');
+            trendTd.textContent = trend;
+            trendTd.style.textAlign = 'left';
+            trendTd.className = trend.includes('Accel') ? 'positive' : trend.includes('Decel') ? 'negative' : 'neutral';
+            row.append(labelTd, gainedTd, rateTd, perDayTd, trendTd);
+            growthBody.appendChild(row);
+          }
+
+          // Daily snapshots table
+          const dailyBody = document.getElementById('daily-body')!;
+          dailyBody.innerHTML = '';
+
+          if (dailySnapshots.length === 0) {
+            const row = document.createElement('tr');
+            const cell = document.createElement('td');
+            cell.colSpan = 4;
+            cell.className = 'msg-cell';
+            cell.textContent = 'No daily snapshots yet.';
+            row.appendChild(cell);
+            dailyBody.appendChild(row);
+          } else {
+            const sorted = [...dailySnapshots].sort((a, b) => b.collected_on.localeCompare(a.collected_on));
+            for (let i = 0; i < sorted.length; i++) {
+              const snap = sorted[i];
+              const prev = sorted[i + 1];
+              const starDelta = prev ? snap.stars - prev.stars : 0;
+              const row = document.createElement('tr');
+              const dateTd = document.createElement('td');
+              dateTd.textContent = snap.collected_on;
+              dateTd.style.textAlign = 'left';
+              const starsTd = document.createElement('td');
+              starsTd.className = 'num';
+              starsTd.textContent = fmt.format(snap.stars);
+              const forksTd = document.createElement('td');
+              forksTd.className = 'num';
+              forksTd.textContent = fmt.format(snap.forks);
+              const changeTd = document.createElement('td');
+              changeTd.className = `num ${cls(starDelta)}`;
+              changeTd.textContent = i < sorted.length - 1 ? delta(starDelta) : '\u2014';
+              row.append(dateTd, starsTd, forksTd, changeTd);
+              dailyBody.appendChild(row);
+            }
+          }
+
+          // Star history chart
+          if (dailySnapshots.length >= 2) {
+            initChart(dailySnapshots);
+          } else {
+            const chartSection = document.querySelector('.chart-section') as HTMLElement;
+            if (chartSection) {
+              const note = document.createElement('p');
+              note.className = 'chart-note';
+              note.textContent = 'Not enough data points for a chart yet.';
+              chartSection.querySelector('.chart-container')!.replaceWith(note);
+            }
+          }
+
+          // ── AI Chat Panel ──
+          const GEMINI_KEY = (import.meta as any).env?.PUBLIC_GEMINI_API_KEY || '';
+          const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-pro:streamGenerateContent?alt=sse&key=${GEMINI_KEY}`;
+
+          // Build system prompt with all repo context
+          const systemLines: string[] = [];
+          systemLines.push(`You are an expert startup & open-source investment analyst. The user is asking about the GitHub repo "${owner}/${name}".`);
+          systemLines.push(`Answer concisely but with strong analytical depth. Use specific numbers from the data when relevant. Be direct about risk and opportunity.`);
+          systemLines.push('');
+          systemLines.push('=== REPO OVERVIEW ===');
+          if (ghInfo?.description) systemLines.push(`Description: ${ghInfo.description}`);
+          if (ghInfo?.language) systemLines.push(`Primary language: ${ghInfo.language}`);
+          if (ghInfo?.license?.spdx_id) systemLines.push(`License: ${ghInfo.license.spdx_id}`);
+          if (ageMonths) systemLines.push(`Age: ${ageMonths} months`);
+          if (ghInfo?.topics?.length) systemLines.push(`Topics: ${ghInfo.topics.join(', ')}`);
+          systemLines.push('');
+          systemLines.push('=== STAR & FORK METRICS ===');
+          systemLines.push(`Current stars: ${fmt.format(stars)}`);
+          systemLines.push(`Current forks: ${fmt.format(forks)}`);
+          systemLines.push(`Fork-to-star ratio: ${forkStarRatio.toFixed(1)}%`);
+          if (starsPerMonth) systemLines.push(`Avg stars/month (lifetime): ${fmt.format(starsPerMonth)}`);
+          systemLines.push(`1-day stars: ${delta(d1)}`);
+          systemLines.push(`7-day stars: ${delta(d7)} (${pct(rate7d)} growth, ${starsPerDay7d.toFixed(1)}/day)`);
+          systemLines.push(`1-month stars: ${delta(d1m)} (${pct(rate1m)} growth, ${starsPerDay1m.toFixed(1)}/day)`);
+          systemLines.push(`3-month stars: ${delta(d3m)} (${pct(rate3m)} growth, ${starsPerDay3m.toFixed(1)}/day)`);
+          systemLines.push('');
+          systemLines.push('=== GROWTH DYNAMICS ===');
+          systemLines.push(`Acceleration (7d vs monthly avg): ${acceleration > 0 ? '+' : ''}${acceleration.toFixed(1)}%`);
+          systemLines.push(`6-month projection (at current 7d rate): ${fmt.format(projected6m)} stars`);
+          systemLines.push('');
+          systemLines.push('=== DEAL FLOW SIGNAL MODEL ===');
+          systemLines.push(`Total Engagement (E_total = stars + 3×forks): ${fmt.format(E_total)}`);
+          systemLines.push(`Growth Rate (M_base = 75%×7D + 25%×30D ratio vs E_total): ${(M_base * 100).toFixed(2)}%`);
+          systemLines.push(`Target Zone (R): ${R_zone.toFixed(3)}× — ${stars < 1000 ? 'EXCLUDED (below 1k)' : stars <= 10000 ? 'Sweet spot (1k-10k)' : 'Penalized R²=' + R_zone.toFixed(4) + ' (above 10k)'}`);
+          systemLines.push(`Hype Penalty (H_1, penalizes 1D spikes): ${H_1.toFixed(3)}×`);
+          systemLines.push(`Steadiness (Q_s, 7D vs 30D weekly pace): ${Q_s.toFixed(3)}× — ${Q_s >= 1.0 ? 'surging' : Q_s >= 0.5 ? 'moderate' : 'stalled'}`);
+          systemLines.push(`Consistency (C_90, 30D vs 90D monthly pace): ${C_90.toFixed(3)}× — ${C_90 >= 1.0 ? 'accelerating' : C_90 >= 0.5 ? 'steady' : 'decelerating'}`);
+          systemLines.push(`Final Signal Score: ${fmtSignal(finalMomentum)} (Hot ≥20, Warm ≥5, model heavily favors 1k-10k star repos)`);
+          systemLines.push('');
+          systemLines.push('=== DEVELOPMENT ACTIVITY ===');
+          if (daysSinceCommit !== null) systemLines.push(`Last commit: ${daysSinceCommit === 0 ? 'today' : daysSinceCommit + ' days ago'}`);
+          systemLines.push(`Commits in last 30 days: ${commitsLast30d}+`);
+          systemLines.push(`Contributors: ${numContributors}+`);
+          if (daysSinceRelease !== null) systemLines.push(`Last release: ${daysSinceRelease} days ago${lastRelease?.tag_name ? ' (' + lastRelease.tag_name + ')' : ''}`);
+          systemLines.push(`Open PRs: ${openPRs > 0 ? openPRs + '+' : '0 (from first page)'}`);
+          if (ghInfo?.open_issues_count !== undefined) systemLines.push(`Open issues: ${fmt.format(ghInfo.open_issues_count)}`);
+          systemLines.push('');
+          systemLines.push('=== INVESTMENT VERDICT ===');
+          systemLines.push(`Score: ${Math.round(score)}/100`);
+          systemLines.push(`Level: ${verdictText}`);
+          systemLines.push(`Assessment: ${verdictDesc}`);
+          systemLines.push('');
+          systemLines.push('=== INVESTMENT SIGNALS ===');
+          for (const s of signals) {
+            systemLines.push(`${s.positive ? '[+]' : '[-]'} (weight ${s.weight}) ${s.label}`);
+          }
+          systemLines.push('');
+          systemLines.push('=== THESIS POINTS ===');
+          for (const tp of thesisPoints) {
+            systemLines.push(`• ${tp}`);
+          }
+          systemLines.push('');
+          systemLines.push('=== FLAGS ===');
+          for (const f of flags) {
+            systemLines.push(`[${f.level.toUpperCase()}] ${f.title} — ${f.detail}`);
+          }
+
+          if (recentCommits.length > 0) {
+            systemLines.push('');
+            systemLines.push('=== RECENT COMMITS (up to 10) ===');
+            for (const c of recentCommits.slice(0, 10)) {
+              const msg = c.commit?.message?.split('\n')[0] || '';
+              const d = c.commit?.author?.date ? c.commit.author.date.slice(0, 10) : '';
+              const who = c.commit?.author?.name || '';
+              systemLines.push(`${d} [${who}] ${msg}`);
+            }
+          }
+
+          if (recentReleases.length > 0) {
+            systemLines.push('');
+            systemLines.push('=== RECENT RELEASES ===');
+            for (const rel of recentReleases) {
+              const d = rel.published_at ? rel.published_at.slice(0, 10) : '';
+              systemLines.push(`${d} ${rel.tag_name || ''} — ${rel.name || 'No title'}`);
+            }
+          }
+
+          if (contributors.length > 0) {
+            systemLines.push('');
+            systemLines.push('=== TOP CONTRIBUTORS ===');
+            for (const c of contributors.slice(0, 10)) {
+              systemLines.push(`${c.login} (${c.contributions} contributions)`);
+            }
+          }
+
+          const systemPrompt = systemLines.join('\n');
+
+          // Chat state
+          const chatHistory: { role: string; parts: { text: string }[] }[] = [];
+          let chatBusy = false;
+
+          // DOM refs
+          const chatPanel = document.getElementById('ai-chat-panel')!;
+          const chatHeader = document.getElementById('ai-chat-header')!;
+          const chatToggle = document.getElementById('ai-chat-toggle')!;
+          const chatBody = document.getElementById('ai-chat-body')!;
+          const chatMessages = document.getElementById('ai-chat-messages')!;
+          const chatInput = document.getElementById('ai-chat-input') as HTMLInputElement;
+          const chatSend = document.getElementById('ai-chat-send') as HTMLButtonElement;
+          const chatChips = document.getElementById('ai-chat-chips')!;
+
+          // Toggle panel
+          chatHeader.addEventListener('click', () => {
+            chatPanel.classList.toggle('ai-chat-collapsed');
+            chatToggle.innerHTML = chatPanel.classList.contains('ai-chat-collapsed') ? '&#9650;' : '&#9660;';
+            if (!chatPanel.classList.contains('ai-chat-collapsed')) {
+              setTimeout(() => chatInput.focus(), 200);
+            }
+          });
+
+          // Enable/disable send button
+          chatInput.addEventListener('input', () => {
+            chatSend.disabled = chatInput.value.trim().length === 0 || chatBusy;
+          });
+
+          // Send on Enter
+          chatInput.addEventListener('keydown', (e: KeyboardEvent) => {
+            if (e.key === 'Enter' && !e.shiftKey && chatInput.value.trim() && !chatBusy) {
+              e.preventDefault();
+              sendMessage(chatInput.value.trim());
+            }
+          });
+
+          // Send button click
+          chatSend.addEventListener('click', () => {
+            if (chatInput.value.trim() && !chatBusy) {
+              sendMessage(chatInput.value.trim());
+            }
+          });
+
+          // Chip clicks
+          chatChips.querySelectorAll('.ai-chat-chip').forEach(chip => {
+            chip.addEventListener('click', () => {
+              const q = (chip as HTMLElement).dataset.q || chip.textContent || '';
+              if (q && !chatBusy) sendMessage(q);
+            });
+          });
+
+          // Simple markdown formatter
+          function formatMarkdown(text: string): string {
+            let html = text;
+            // Code blocks
+            html = html.replace(/```(\w*)\n([\s\S]*?)```/g, '<pre><code>$2</code></pre>');
+            // Inline code
+            html = html.replace(/`([^`]+)`/g, '<code>$1</code>');
+            // Headings (### h3, ## h2, # h1)
+            html = html.replace(/^### (.+)$/gm, '<h4 class="ai-chat-h">$1</h4>');
+            html = html.replace(/^## (.+)$/gm, '<h4 class="ai-chat-h">$1</h4>');
+            html = html.replace(/^# (.+)$/gm, '<h4 class="ai-chat-h">$1</h4>');
+            // Bold
+            html = html.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+            // Italic
+            html = html.replace(/\*(.+?)\*/g, '<em>$1</em>');
+            // Bullet lists
+            html = html.replace(/^[\-\*] (.+)$/gm, '<li>$1</li>');
+            html = html.replace(/(<li>.*<\/li>)/s, '<ul>$1</ul>');
+            // Fix multiple <ul> wrapping
+            html = html.replace(/<\/ul>\s*<ul>/g, '');
+            // Numbered lists
+            html = html.replace(/^\d+\. (.+)$/gm, '<li>$1</li>');
+            // Paragraphs (double newlines)
+            html = html.replace(/\n\n/g, '</p><p>');
+            html = '<p>' + html + '</p>';
+            html = html.replace(/<p>\s*<\/p>/g, '');
+            // Clean up <p> around block elements
+            html = html.replace(/<p>\s*(<ul>|<ol>|<pre>|<li>|<h4)/g, '$1');
+            html = html.replace(/(<\/ul>|<\/ol>|<\/pre>|<\/li>|<\/h4>)\s*<\/p>/g, '$1');
+            return html;
+          }
+
+          function addMessage(role: 'user' | 'ai', text: string) {
+            const div = document.createElement('div');
+            div.className = role === 'user' ? 'ai-chat-msg ai-chat-msg-user' : 'ai-chat-msg ai-chat-msg-ai';
+            if (role === 'ai') {
+              div.innerHTML = formatMarkdown(text);
+            } else {
+              div.textContent = text;
+            }
+            chatMessages.appendChild(div);
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+            return div;
+          }
+
+          function addTyping(): HTMLElement {
+            const div = document.createElement('div');
+            div.className = 'ai-chat-typing';
+            div.innerHTML = '<span></span><span></span><span></span>';
+            chatMessages.appendChild(div);
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+            return div;
+          }
+
+          function showChatError(msg: string) {
+            const div = document.createElement('div');
+            div.className = 'ai-chat-error';
+            div.textContent = msg;
+            chatMessages.appendChild(div);
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+          }
+
+          async function sendMessage(text: string) {
+            if (chatBusy) return;
+            chatBusy = true;
+            chatSend.disabled = true;
+            chatInput.value = '';
+
+            // Hide chips after first message
+            chatChips.style.display = 'none';
+
+            // Add user message
+            addMessage('user', text);
+            chatHistory.push({ role: 'user', parts: [{ text }] });
+
+            const typingEl = addTyping();
+
+            try {
+              if (!GEMINI_KEY) {
+                throw new Error('Missing Gemini API key. Set PUBLIC_GEMINI_API_KEY in your .env file.');
+              }
+
+              const body = {
+                system_instruction: { parts: [{ text: systemPrompt }] },
+                contents: chatHistory,
+                generationConfig: {
+                  temperature: 0.7,
+                  topP: 0.9,
+                  maxOutputTokens: 2048,
+                },
+              };
+
+              const resp = await fetch(GEMINI_URL, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(body),
+              });
+
+              if (!resp.ok) {
+                const errData = await resp.text();
+                throw new Error(`API error ${resp.status}: ${errData.slice(0, 200)}`);
+              }
+
+              // Stream SSE response
+              const reader = resp.body!.getReader();
+              const decoder = new TextDecoder();
+              let fullText = '';
+              let aiDiv: HTMLElement | null = null;
+              let buffer = '';
+
+              typingEl.remove();
+
+              while (true) {
+                const { done, value } = await reader.read();
+                if (done) break;
+
+                buffer += decoder.decode(value, { stream: true });
+                const lines = buffer.split('\n');
+                buffer = lines.pop() || '';
+
+                for (const line of lines) {
+                  if (!line.startsWith('data: ')) continue;
+                  const jsonStr = line.slice(6).trim();
+                  if (!jsonStr || jsonStr === '[DONE]') continue;
+
+                  try {
+                    const parsed = JSON.parse(jsonStr);
+                    const chunk = parsed.candidates?.[0]?.content?.parts?.[0]?.text;
+                    if (chunk) {
+                      fullText += chunk;
+                      if (!aiDiv) {
+                        aiDiv = addMessage('ai', fullText);
+                      } else {
+                        aiDiv.innerHTML = formatMarkdown(fullText);
+                      }
+                      chatMessages.scrollTop = chatMessages.scrollHeight;
+                    }
+                  } catch { /* skip malformed JSON */ }
+                }
+              }
+
+              // If no streaming happened, check if response is non-SSE JSON
+              if (!fullText) {
+                typingEl.remove();
+                // Try parsing the entire response as regular JSON
+                try {
+                  buffer += decoder.decode();
+                  // The whole response might be one big JSON if SSE didn't kick in
+                  const allText = buffer;
+                  if (allText.startsWith('data: ')) {
+                    const lines2 = allText.split('\n');
+                    for (const l of lines2) {
+                      if (!l.startsWith('data: ')) continue;
+                      const js = l.slice(6).trim();
+                      if (!js || js === '[DONE]') continue;
+                      try {
+                        const p = JSON.parse(js);
+                        const c = p.candidates?.[0]?.content?.parts?.[0]?.text;
+                        if (c) fullText += c;
+                      } catch {}
+                    }
+                  }
+                  if (fullText) {
+                    addMessage('ai', fullText);
+                  } else {
+                    showChatError('No response received from AI.');
+                  }
+                } catch {
+                  showChatError('Failed to parse AI response.');
+                }
+              }
+
+              // Add to history
+              if (fullText) {
+                chatHistory.push({ role: 'model', parts: [{ text: fullText }] });
+              }
+
+            } catch (err: any) {
+              typingEl.remove();
+              showChatError(err.message || 'Something went wrong. Please try again.');
+            } finally {
+              chatBusy = false;
+              chatSend.disabled = chatInput.value.trim().length === 0;
+            }
+          }
+
+        } catch (err: any) {
+          showError(`Error loading repo data: ${err.message}`);
+        }
+      })();
+    }
+
+    // ── Interactive Chart.js chart ──
+    import { Chart, registerables } from 'chart.js';
+    Chart.register(...registerables);
+
+    let chartInstance: Chart | null = null;
+    let chartSnapshots: { collected_on: string; stars: number }[] = [];
+
+    function getThemeColors() {
+      const style = getComputedStyle(document.documentElement);
+      const accent = style.getPropertyValue('--accent').trim() || '#4f8ff7';
+      const green = style.getPropertyValue('--green').trim() || '#3fb950';
+      const red = style.getPropertyValue('--red').trim() || '#f85149';
+      const gridColor = style.getPropertyValue('--border').trim() || '#d0d7de';
+      const labelColor = style.getPropertyValue('--text-tertiary').trim() || '#656d76';
+      const tooltipBg = style.getPropertyValue('--bg-card').trim() || '#ffffff';
+      const tooltipText = style.getPropertyValue('--text-primary').trim() || '#1f2328';
+      const tooltipBorder = style.getPropertyValue('--border').trim() || '#d0d7de';
+      return { accent, green, red, gridColor, labelColor, tooltipBg, tooltipText, tooltipBorder };
+    }
+
+    function parseColor(hex: string): { r: number; g: number; b: number } {
+      const c = hex.replace('#', '');
+      return {
+        r: parseInt(c.substring(0, 2), 16),
+        g: parseInt(c.substring(2, 4), 16),
+        b: parseInt(c.substring(4, 6), 16),
+      };
+    }
+
+    function buildLineChart(sorted: { collected_on: string; stars: number }[]) {
+      const canvas = document.getElementById('star-chart') as HTMLCanvasElement;
+      if (!canvas) return;
+
+      if (chartInstance) { chartInstance.destroy(); chartInstance = null; }
+
+      const colors = getThemeColors();
+      const { r, g, b } = parseColor(colors.accent);
+
+      const labels = sorted.map(d => d.collected_on);
+      const data = sorted.map(d => d.stars);
+
+      chartInstance = new Chart(canvas, {
+        type: 'line',
+        data: {
+          labels,
+          datasets: [{
+            label: 'Stars',
+            data,
+            borderColor: colors.accent,
+            backgroundColor: (ctx: any) => {
+              const chart = ctx.chart;
+              const { ctx: canvasCtx, chartArea } = chart;
+              if (!chartArea) return `rgba(${r},${g},${b},0.1)`;
+              const gradient = canvasCtx.createLinearGradient(0, chartArea.top, 0, chartArea.bottom);
+              gradient.addColorStop(0, `rgba(${r},${g},${b},0.25)`);
+              gradient.addColorStop(1, `rgba(${r},${g},${b},0.02)`);
+              return gradient;
+            },
+            fill: true,
+            tension: 0.35,
+            borderWidth: 2.5,
+            pointRadius: sorted.length > 30 ? 0 : 4,
+            pointHoverRadius: 7,
+            pointBackgroundColor: colors.accent,
+            pointBorderColor: colors.accent,
+            pointHoverBackgroundColor: '#fff',
+            pointHoverBorderWidth: 3,
+            pointHoverBorderColor: colors.accent,
+          }],
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          animation: {
+            duration: 800,
+            easing: 'easeOutQuart',
+          },
+          interaction: {
+            mode: 'index',
+            intersect: false,
+          },
+          plugins: {
+            legend: { display: false },
+            tooltip: {
+              backgroundColor: colors.tooltipBg,
+              titleColor: colors.tooltipText,
+              bodyColor: colors.tooltipText,
+              borderColor: colors.tooltipBorder,
+              borderWidth: 1,
+              cornerRadius: 8,
+              padding: 12,
+              displayColors: false,
+              titleFont: { family: '-apple-system, BlinkMacSystemFont, sans-serif', size: 11, weight: 'normal' as const },
+              bodyFont: { family: '-apple-system, BlinkMacSystemFont, sans-serif', size: 14, weight: 'bold' as const },
+              callbacks: {
+                title: (items: any[]) => items[0]?.label || '',
+                label: (item: any) => {
+                  const val = item.raw as number;
+                  const idx = item.dataIndex;
+                  const prevVal = idx > 0 ? (item.dataset.data[idx - 1] as number) : val;
+                  const diff = val - prevVal;
+                  const diffStr = diff > 0 ? ` (+${fmt.format(diff)})` : diff < 0 ? ` (${fmt.format(diff)})` : '';
+                  return `${fmt.format(val)} stars${diffStr}`;
+                },
+              },
+            },
+          },
+          scales: {
+            x: {
+              grid: { color: colors.gridColor, lineWidth: 0.5 },
+              ticks: {
+                color: colors.labelColor,
+                font: { family: '-apple-system, BlinkMacSystemFont, sans-serif', size: 11 },
+                maxRotation: 0,
+                maxTicksLimit: 8,
+                callback: function(val: any, index: number) {
+                  const label = labels[index];
+                  return label ? label.slice(5) : '';
+                },
+              },
+              border: { display: false },
+            },
+            y: {
+              grid: { color: colors.gridColor, lineWidth: 0.5 },
+              ticks: {
+                color: colors.labelColor,
+                font: { family: '-apple-system, BlinkMacSystemFont, sans-serif', size: 11 },
+                callback: (val: any) => fmt.format(val as number),
+                maxTicksLimit: 6,
+              },
+              border: { display: false },
+            },
+          },
+        },
+      });
+    }
+
+    function buildBarChart(sorted: { collected_on: string; stars: number }[]) {
+      const canvas = document.getElementById('star-chart') as HTMLCanvasElement;
+      if (!canvas) return;
+
+      if (chartInstance) { chartInstance.destroy(); chartInstance = null; }
+
+      const colors = getThemeColors();
+
+      // Compute daily deltas
+      const labels: string[] = [];
+      const deltas: number[] = [];
+      for (let i = 1; i < sorted.length; i++) {
+        labels.push(sorted[i].collected_on);
+        deltas.push(sorted[i].stars - sorted[i - 1].stars);
+      }
+
+      const barColors = deltas.map(d => d >= 0 ? colors.green : colors.red);
+      const hoverColors = deltas.map(d => {
+        const { r, g, b } = parseColor(d >= 0 ? colors.green : colors.red);
+        return `rgba(${r},${g},${b},0.7)`;
+      });
+
+      chartInstance = new Chart(canvas, {
+        type: 'bar',
+        data: {
+          labels,
+          datasets: [{
+            label: 'Daily Change',
+            data: deltas,
+            backgroundColor: barColors,
+            hoverBackgroundColor: hoverColors,
+            borderRadius: 3,
+            borderSkipped: false,
+          }],
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          animation: {
+            duration: 600,
+            easing: 'easeOutQuart',
+          },
+          interaction: {
+            mode: 'index',
+            intersect: false,
+          },
+          plugins: {
+            legend: { display: false },
+            tooltip: {
+              backgroundColor: colors.tooltipBg,
+              titleColor: colors.tooltipText,
+              bodyColor: colors.tooltipText,
+              borderColor: colors.tooltipBorder,
+              borderWidth: 1,
+              cornerRadius: 8,
+              padding: 12,
+              displayColors: false,
+              titleFont: { family: '-apple-system, BlinkMacSystemFont, sans-serif', size: 11, weight: 'normal' as const },
+              bodyFont: { family: '-apple-system, BlinkMacSystemFont, sans-serif', size: 14, weight: 'bold' as const },
+              callbacks: {
+                title: (items: any[]) => items[0]?.label || '',
+                label: (item: any) => {
+                  const val = item.raw as number;
+                  const sign = val >= 0 ? '+' : '';
+                  return `${sign}${fmt.format(val)} stars`;
+                },
+              },
+            },
+          },
+          scales: {
+            x: {
+              grid: { display: false },
+              ticks: {
+                color: colors.labelColor,
+                font: { family: '-apple-system, BlinkMacSystemFont, sans-serif', size: 11 },
+                maxRotation: 0,
+                maxTicksLimit: 8,
+                callback: function(val: any, index: number) {
+                  const label = labels[index];
+                  return label ? label.slice(5) : '';
+                },
+              },
+              border: { display: false },
+            },
+            y: {
+              grid: { color: colors.gridColor, lineWidth: 0.5 },
+              ticks: {
+                color: colors.labelColor,
+                font: { family: '-apple-system, BlinkMacSystemFont, sans-serif', size: 11 },
+                callback: (val: any) => {
+                  const n = val as number;
+                  return n >= 0 ? '+' + fmt.format(n) : fmt.format(n);
+                },
+                maxTicksLimit: 6,
+              },
+              border: { display: false },
+            },
+          },
+        },
+      });
+    }
+
+    function initChart(data: { collected_on: string; stars: number }[]) {
+      chartSnapshots = [...data].sort((a, b) => a.collected_on.localeCompare(b.collected_on));
+      buildLineChart(chartSnapshots);
+
+      // Tab switching
+      const tabs = document.querySelectorAll<HTMLButtonElement>('.chart-tab');
+      tabs.forEach(tab => {
+        tab.addEventListener('click', () => {
+          tabs.forEach(t => t.classList.remove('active'));
+          tab.classList.add('active');
+          const mode = tab.dataset.chart;
+          if (mode === 'bar') buildBarChart(chartSnapshots);
+          else buildLineChart(chartSnapshots);
+        });
+      });
+
+      // Re-render on theme change
+      const observer = new MutationObserver(() => {
+        const activeTab = document.querySelector('.chart-tab.active') as HTMLElement;
+        const mode = activeTab?.dataset?.chart || 'line';
+        if (mode === 'bar') buildBarChart(chartSnapshots);
+        else buildLineChart(chartSnapshots);
+      });
+      observer.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+    }
+  </script>
+</Base>

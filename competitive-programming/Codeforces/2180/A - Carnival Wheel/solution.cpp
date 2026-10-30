@@ -1,0 +1,1 @@
+#include <bits/stdc++.h>using namespace std;#define int long long#define double long double  int32_t main() {    int l, a, b, t;    cin >> t;    for(int i = 0; i < t; i += 1) {        cin >> l >> a >> b;        cout << l - gcd(l, b) + a % gcd(l, b) << '\n';     }    return 0;}

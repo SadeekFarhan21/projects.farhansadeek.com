@@ -1,0 +1,4 @@
+project_id = "github-metrics-tracker"
+
+[functions.collect-metrics]
+verify_jwt = false

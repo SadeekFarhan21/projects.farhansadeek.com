@@ -1,0 +1,332 @@
+---
+import courses from '../data/courses.json';
+
+const total = courses.length;
+const distinctCourses = new Set(courses.map((c) => c.course)).size;
+
+// subjects with section counts for the dropdown
+const counts = {};
+for (const c of courses) counts[c.subject] = (counts[c.subject] ?? 0) + 1;
+const subjects = Object.keys(counts).sort();
+
+// numeric course level, e.g. "COMS 4111" -> 4111; graduate = 4000+
+const levelOf = (r) => {
+  const m = (r.course || '').match(/(\d{4})/);
+  return m ? Number(m[1]) : 0;
+};
+
+// seminar / research / topics offerings get their own tab
+const isSpecial = (r) => {
+  const t = (r.title || '').toLowerCase();
+  if (/\bseminar\b/.test(t)) return true;
+  if (/\btopics?\b/.test(t)) return true;
+  if (/\bresearch\b/.test(t) && !/operations research/.test(t)) return true;
+  return false;
+};
+const specialCount = courses.filter(isSpecial).length;
+const regularCount = total - specialCount;
+
+const fmtSeats = (r) => (r.seatsLeft == null ? '—' : r.seatsLeft);
+const fillPct = (r) =>
+  r.capacity ? Math.min(100, Math.round((r.enrolled / r.capacity) * 100)) : null;
+const seatClass = (r) => {
+  if (r.seatsLeft == null) return 'na';
+  if (r.seatsLeft <= 0) return 'full';
+  if (r.seatsLeft <= 5) return 'low';
+  return 'open';
+};
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Columbia Courses — Fall 2026</title>
+    <meta
+      name="description"
+      content="Fall 2026 courses across every Columbia subject and level, with instructors and live enrollment. Data from the public Directory of Classes."
+    />
+  </head>
+  <body>
+    <header class="hero">
+      <div class="wrap">
+        <p class="eyebrow">Columbia University · Fall 2026</p>
+        <h1>Course Schedule</h1>
+        <p class="sub">
+          Courses across {subjects.length} subjects — instructors and live seat counts.
+          Data from the public Directory of Classes &amp; Vergil.
+        </p>
+        <div class="stats">
+          <span><strong>{distinctCourses}</strong> courses</span>
+          <span><strong>{total}</strong> sections</span>
+          <span><strong>{subjects.length}</strong> subjects</span>
+          <a class="dl" href="/courses.csv" download>↓ courses.csv</a>
+        </div>
+      </div>
+    </header>
+
+    <main class="wrap">
+      <div class="tabs" role="tablist" aria-label="Course type">
+        <button class="tab" data-cat="regular" role="tab" aria-selected="true">
+          Courses <span class="tcount">{regularCount}</span>
+        </button>
+        <button class="tab" data-cat="special" role="tab" aria-selected="false">
+          Seminars, Research &amp; Topics <span class="tcount">{specialCount}</span>
+        </button>
+      </div>
+
+      <div class="controls">
+        <input id="q" type="search" placeholder="Search title, course, instructor…   ( / )" autocomplete="off" />
+        <select id="subject">
+          <option value="">All subjects</option>
+          {subjects.map((s) => <option value={s}>{s} ({counts[s]})</option>)}
+        </select>
+        <label class="open-only"><input type="checkbox" id="gradOnly" /> graduate (4000+)</label>
+        <label class="open-only"><input type="checkbox" id="openOnly" /> seats available</label>
+        <span id="count" class="count"></span>
+      </div>
+
+      <div class="tablewrap">
+        <table id="t">
+          <thead>
+            <tr>
+              <th data-k="course" class="sortable">Course</th>
+              <th data-k="title" class="sortable">Title</th>
+              <th data-k="section">Sec</th>
+              <th data-k="schedule" class="sortable">Schedule</th>
+              <th data-k="instructor" class="sortable">Instructor</th>
+              <th data-k="enrolled" class="sortable num">Enr.</th>
+              <th data-k="capacity" class="sortable num">Cap.</th>
+              <th data-k="seatsLeft" class="sortable num">Seats</th>
+              <th data-k="points" class="sortable num">Pts</th>
+            </tr>
+          </thead>
+          <tbody>
+            {
+              courses.map((r) => (
+                <tr
+                  data-subject={r.subject}
+                  data-cat={isSpecial(r) ? 'special' : 'regular'}
+                  data-text={`${r.course} ${r.crosslist} ${r.title} ${r.instructor}`.toLowerCase()}
+                  data-level={levelOf(r)}
+                  data-course={r.course}
+                  data-title={r.title}
+                  data-schedule={r.schedule}
+                  data-instructor={r.instructor}
+                  data-enrolled={r.enrolled ?? -1}
+                  data-capacity={r.capacity ?? -1}
+                  data-seatsleft={r.seatsLeft ?? -1}
+                  data-points={r.pointsNum ?? -1}
+                >
+                  <td class="mono">
+                    <a class="clink" href={r.vergil} target="_blank" rel="noopener" title="Open in Vergil">{r.course}</a>
+                    {r.crosslist && <span class="xl" title={r.crosslist}>＋</span>}
+                  </td>
+                  <td>{r.title}</td>
+                  <td class="mono dim">{r.section}</td>
+                  <td class={r.schedule === 'TBA' ? 'dim' : ''}>{r.schedule}</td>
+                  <td>{r.instructor || '—'}</td>
+                  <td class="num">{r.enrolled ?? '—'}</td>
+                  <td class="num">{r.capacity ?? '—'}</td>
+                  <td class={`num seats ${seatClass(r)}`}>
+                    {fmtSeats(r)}
+                    {fillPct(r) != null && (
+                      <span class="bar" title={`${r.enrolled}/${r.capacity} enrolled`}>
+                        <span class="fill" style={`width:${fillPct(r)}%`} />
+                      </span>
+                    )}
+                  </td>
+                  <td class="num dim">{r.points}</td>
+                </tr>
+              ))
+            }
+          </tbody>
+        </table>
+        <p id="empty" class="empty" hidden>No courses match your filters.</p>
+      </div>
+    </main>
+
+    <footer class="wrap">
+      <p>
+        Snapshot as of Jun 18, 2026 · rooms are assigned closer to the term · not an official registration source —
+        verify in <a href="https://vergil.columbia.edu/vergil/">Vergil</a>.
+      </p>
+    </footer>
+
+    <script>
+      const tbody = document.querySelector('#t tbody');
+      const rows = Array.from(tbody.querySelectorAll('tr'));
+      const q = document.getElementById('q');
+      const subject = document.getElementById('subject');
+      const openOnly = document.getElementById('openOnly');
+      const gradOnly = document.getElementById('gradOnly');
+      const count = document.getElementById('count');
+      const empty = document.getElementById('empty');
+      const tabs = Array.from(document.querySelectorAll('.tab'));
+
+      let activeCat = 'regular';
+      const catTotals = { regular: 0, special: 0 };
+      for (const tr of rows) catTotals[tr.dataset.cat]++;
+
+      function apply() {
+        const term = q.value.trim().toLowerCase();
+        const subj = subject.value;
+        const onlyOpen = openOnly.checked;
+        const onlyGrad = gradOnly.checked;
+        let shown = 0;
+        for (const tr of rows) {
+          const ok =
+            tr.dataset.cat === activeCat &&
+            (!term || tr.dataset.text.includes(term)) &&
+            (!subj || tr.dataset.subject === subj) &&
+            (!onlyOpen || Number(tr.dataset.seatsleft) > 0) &&
+            (!onlyGrad || Number(tr.dataset.level) >= 4000);
+          tr.hidden = !ok;
+          if (ok) shown++;
+        }
+        count.textContent = shown + ' / ' + catTotals[activeCat];
+        empty.hidden = shown !== 0;
+      }
+
+      tabs.forEach((tab) => {
+        tab.addEventListener('click', () => {
+          activeCat = tab.dataset.cat;
+          tabs.forEach((t) => t.setAttribute('aria-selected', String(t === tab)));
+          apply();
+        });
+      });
+
+      document.addEventListener('keydown', (e) => {
+        if (e.key === '/' && document.activeElement !== q) {
+          e.preventDefault();
+          q.focus();
+        } else if (e.key === 'Escape' && document.activeElement === q) {
+          q.value = '';
+          apply();
+        }
+      });
+
+      let sortKey = null,
+        dir = 1;
+      const numKeys = new Set(['enrolled', 'capacity', 'seatsLeft', 'points']);
+      document.querySelectorAll('th.sortable').forEach((th) => {
+        th.addEventListener('click', () => {
+          const k = th.dataset.k;
+          dir = sortKey === k ? -dir : 1;
+          sortKey = k;
+          document.querySelectorAll('th').forEach((h) => h.removeAttribute('data-dir'));
+          th.setAttribute('data-dir', dir > 0 ? 'asc' : 'desc');
+          const isNum = numKeys.has(k);
+          const val = (tr) =>
+            isNum ? Number(tr.dataset[k.toLowerCase()]) : (tr.dataset[k.toLowerCase()] || '');
+          rows.sort((a, b) => {
+            const x = val(a),
+              y = val(b);
+            return (x < y ? -1 : x > y ? 1 : 0) * dir;
+          });
+          rows.forEach((tr) => tbody.appendChild(tr));
+        });
+      });
+
+      q.addEventListener('input', apply);
+      subject.addEventListener('change', apply);
+      openOnly.addEventListener('change', apply);
+      gradOnly.addEventListener('change', apply);
+      apply();
+    </script>
+
+    <style>
+      :root {
+        --blue: #003da5;
+        --lightblue: #b9d9eb;
+        --ink: #11161d;
+        --muted: #6b7480;
+        --line: #e7eaee;
+        --bg: #f7f8fa;
+      }
+      * { box-sizing: border-box; }
+      html { -webkit-text-size-adjust: 100%; }
+      body {
+        margin: 0;
+        font: 15px/1.5 -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+        color: var(--ink);
+        background: var(--bg);
+      }
+      .wrap { max-width: 1180px; margin: 0 auto; padding: 0 20px; }
+      .hero {
+        background: linear-gradient(180deg, #002e7a, var(--blue));
+        color: #fff;
+        padding: 40px 0 30px;
+      }
+      .eyebrow { margin: 0 0 6px; text-transform: uppercase; letter-spacing: 0.08em; font-size: 12px; color: var(--lightblue); font-weight: 600; }
+      .hero h1 { margin: 0; font-size: clamp(28px, 5vw, 40px); letter-spacing: -0.02em; }
+      .hero .sub { margin: 10px 0 18px; max-width: 64ch; color: #dfe8f6; }
+      .stats { display: flex; flex-wrap: wrap; gap: 18px; align-items: center; font-size: 14px; color: #dfe8f6; }
+      .stats strong { color: #fff; font-size: 17px; }
+      .dl {
+        margin-left: auto; color: #fff; text-decoration: none; font-weight: 600;
+        border: 1px solid rgba(255, 255, 255, 0.5); padding: 7px 14px; border-radius: 8px;
+      }
+      .dl:hover { background: rgba(255, 255, 255, 0.12); }
+      .tabs { display: flex; gap: 4px; margin-top: 20px; border-bottom: 1px solid var(--line); }
+      .tab {
+        appearance: none; background: none; border: none; margin-bottom: -1px;
+        padding: 11px 16px; font: inherit; font-size: 14px; font-weight: 600; color: var(--muted);
+        cursor: pointer; border-bottom: 2px solid transparent;
+        display: inline-flex; align-items: center; gap: 7px;
+      }
+      .tab:hover { color: var(--ink); }
+      .tab[aria-selected='true'] { color: var(--blue); border-bottom-color: var(--blue); }
+      .tcount {
+        font-size: 12px; font-weight: 600; color: var(--muted); background: #fff;
+        border: 1px solid var(--line); border-radius: 10px; padding: 1px 8px;
+        font-variant-numeric: tabular-nums;
+      }
+      .tab[aria-selected='true'] .tcount { color: var(--blue); border-color: var(--lightblue); background: #eef4fb; }
+      .controls {
+        position: sticky; top: 0; z-index: 5; display: flex; flex-wrap: wrap; gap: 12px;
+        align-items: center; padding: 16px 0; background: var(--bg);
+      }
+      #q { flex: 0 1 360px; padding: 10px 14px; border: 1px solid var(--line); border-radius: 9px; font-size: 15px; background: #fff; }
+      #q:focus, #subject:focus { outline: 2px solid var(--blue); outline-offset: 1px; }
+      #subject { padding: 10px 12px; border: 1px solid var(--line); border-radius: 9px; background: #fff; font-size: 15px; }
+      .open-only { display: inline-flex; gap: 6px; align-items: center; color: var(--muted); font-size: 14px; }
+      .count { margin-left: auto; color: var(--muted); font-variant-numeric: tabular-nums; font-size: 13px; }
+      .tablewrap { background: #fff; border: 1px solid var(--line); border-radius: 12px; overflow: auto; }
+      table { width: 100%; border-collapse: collapse; font-size: 14px; }
+      thead th {
+        position: sticky; top: 0; background: #fff; text-align: left; font-weight: 600; color: var(--muted);
+        padding: 12px 14px; border-bottom: 2px solid var(--line); white-space: nowrap;
+      }
+      th.sortable { cursor: pointer; user-select: none; }
+      th.sortable:hover { color: var(--ink); }
+      th[data-dir='asc']::after { content: ' ▲'; font-size: 10px; }
+      th[data-dir='desc']::after { content: ' ▼'; font-size: 10px; }
+      tbody td { padding: 11px 14px; border-bottom: 1px solid var(--line); vertical-align: top; }
+      tbody tr:hover { background: #f3f6fb; }
+      .num { text-align: right; font-variant-numeric: tabular-nums; }
+      .mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 13px; white-space: nowrap; }
+      .dim { color: var(--muted); }
+      .clink { color: var(--blue); text-decoration: none; font-weight: 600; }
+      .clink:hover { text-decoration: underline; }
+      .xl { color: var(--blue); margin-left: 4px; cursor: help; }
+      .seats { font-weight: 600; }
+      .seats.open { color: #137a3e; }
+      .seats.low { color: #b5790a; }
+      .seats.full { color: #c0392b; }
+      .seats.na { color: var(--muted); font-weight: 400; }
+      .bar {
+        display: block; width: 46px; height: 4px; margin: 4px 0 0 auto;
+        background: var(--line); border-radius: 3px; overflow: hidden;
+      }
+      .bar .fill { display: block; height: 100%; background: currentColor; opacity: 0.55; }
+      .empty { padding: 28px; text-align: center; color: var(--muted); }
+      footer { padding: 22px 20px 40px; color: var(--muted); font-size: 13px; }
+      footer a, .empty a { color: var(--blue); }
+      @media (max-width: 640px) {
+        thead th:nth-child(6), tbody td:nth-child(6), thead th:nth-child(7), tbody td:nth-child(7) { display: none; }
+      }
+    </style>
+  </body>
+</html>

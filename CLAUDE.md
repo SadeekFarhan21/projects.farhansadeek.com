@@ -53,6 +53,14 @@ The writing standard below is adapted from Sean Goedecke, "Writing a tech blog p
 - **Don't narrate the process as evidence.** No commit hashes in prose, no "the git history shows",
   "the deck argues", "the README says". State the decision and its reason. Git is where facts are
   checked, not the story.
+- **Write about the project, not the work around it.** Leave out commit counts and dates ("seven
+  commits", "16 hours of commits"), reruns and re-measurements after the fact ("after the
+  competition I reran…", "while writing this post I recomputed…"), library-version and environment
+  lists, "newer libraries than the repo pins", "the committed runs/files/benchmark", "an independent
+  reviewer/verification checked…", smoke runs, folder and file-path bookkeeping that isn't part of
+  the design, and which AI tool helped with what. Experiments describe the setup of the experiment
+  itself, not the session it ran in. The reader cares what the thing is, how it works, and what it
+  showed.
 - **Credit collaborators plainly by name** for their parts ("Alex built the player"). Forked and team
   repos Farhan worked on are his work to write about; no per-commit accounting.
 

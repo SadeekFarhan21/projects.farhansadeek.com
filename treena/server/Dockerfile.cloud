@@ -1,0 +1,69 @@
+FROM node:20-bookworm-slim
+
+RUN apt-get update \
+  && apt-get install -y python3 python3-pip python3-venv make g++ git ripgrep curl wget jq zip unzip openssh-client sqlite3 \
+    redis-tools postgresql-client default-mysql-client \
+  && ln -sf /usr/bin/python3 /usr/bin/python \
+  && rm -rf /var/lib/apt/lists/*
+
+# Day 6.1: poetry + uv for setup.run Python ecosystem coverage. Bookworm's
+# system Python is PEP-668 managed; --break-system-packages is the idiomatic
+# way to allow pip in this slim-image context.
+RUN pip3 install --break-system-packages --no-cache-dir poetry uv
+
+# Yarn/pnpm ship with Node via Corepack; npm install -g yarn collides with /usr/local/bin/yarnpkg (EEXIST).
+ENV COREPACK_ENABLE_DOWNLOAD_PROMPT=0
+RUN corepack enable \
+  && corepack prepare yarn@stable --activate \
+  && corepack prepare pnpm@latest --activate
+
+# Global dev tools available on every ephemeral VM (bake into image; rebuild to refresh versions).
+RUN npm install -g \
+  @anthropic-ai/claude-code \
+  @openai/codex \
+  typescript \
+  ts-node \
+  tsx \
+  prettier \
+  eslint \
+  @biomejs/biome \
+  nodemon \
+  serve \
+  http-server \
+  json-server \
+  concurrently \
+  npm-check-updates \
+  vitest \
+  esbuild \
+  jest \
+  vite \
+  webpack-cli \
+  tailwindcss \
+  sass \
+  turbo \
+  prisma \
+  dotenv-cli \
+  mongosh \
+  && npm cache clean --force
+
+WORKDIR /app
+
+# Bridge no longer talks to AWS — auto-destroy uses Fly's Machines API to self-stop.
+# Required env on the running machine: FLY_MACHINE_ID (auto-injected) + FLY_API_TOKEN
+# (Fly secret on treena-bridge). FLY_BRIDGE_APP defaults to 'treena-bridge'.
+COPY package.json ./
+RUN npm install
+
+COPY *.mjs entrypoint-cloud.sh ./
+COPY cloud/repoNames.mjs ./cloud/repoNames.mjs
+
+ENV WORKSPACE_DIR=/workspace
+RUN mkdir -p /workspace \
+  && chown -R node:node /app /workspace \
+  && chmod +x entrypoint-cloud.sh
+
+USER node
+
+EXPOSE 3001
+
+ENTRYPOINT ["./entrypoint-cloud.sh"]

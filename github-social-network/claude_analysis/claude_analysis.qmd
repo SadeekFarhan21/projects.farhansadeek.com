@@ -1,0 +1,1110 @@
+---
+title: "MUSAE GitHub Network Analysis"
+subtitle: "Following *Statistical Analysis of Network Data with R* (Chapters 1--7)"
+author: "Farhan Sadeek"
+date: "`r format(Sys.Date(), '%B %d, %Y')`"
+format:
+  pdf:
+    toc: true
+    toc-depth: 3
+    number-sections: true
+    highlight-style: github
+    keep-tex: true
+    toc-title: Contents
+    documentclass: report
+    papersize: letter
+    pdf-engine: xelatex
+    code-overflow: wrap
+    mainfont: "CMU Bright"
+    fig-device: cairo_pdf
+    include-in-header:
+      text: |
+        \usepackage{fvextra}
+        \DefineVerbatimEnvironment{Highlighting}{Verbatim}{breaklines,commandchars=\\\{\}}
+        \usepackage{booktabs}
+        \usepackage{float}
+    monofont: "Fragment Mono"
+    monofontoptions:
+      - Scale=0.85
+echo: true
+editor: source
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  fig.width  = 7,
+  fig.height = 5,
+  fig.align  = "center",
+  warning    = FALSE,
+  message    = FALSE,
+  cache      = TRUE,
+  dpi        = 300
+)
+```
+
+```{r load-libraries}
+library(igraph)
+library(ggplot2)
+library(dplyr)
+library(readr)
+library(tidyr)
+library(tibble)
+library(knitr)
+library(scales)
+library(pROC)
+library(irlba)
+library(Matrix)
+library(purrr)
+
+set.seed(42)
+
+OUT_DIR <- "../plots"
+dir.create(OUT_DIR, showWarnings = FALSE)
+
+# Unified color palette (seaborn deep)
+# Updated color palette: More vibrant but professionally balanced
+COLOR_PRIMARY   <- "#2A52BE" # Cerulean Blue
+COLOR_SECONDARY <- "#E63946" # Soft Crimson
+COLOR_ACCENT    <- "#2A9D8F" # Persian Green
+COLOR_NEUTRAL   <- "#457B9D" # Steel Blue
+PALETTE_DEEP    <- c(COLOR_PRIMARY, COLOR_SECONDARY, COLOR_ACCENT, 
+                     "#F4A261", "#8338EC", "#FFBE0B")
+
+# Re-defined theme_network with a premium aesthetic
+# Re-defined theme_network with premium aesthetic + histogram-specific spacing
+theme_network <- theme_minimal(base_size = 12, base_family = "sans") +
+  theme(
+    # Titles: Stronger hierarchy
+    plot.title    = element_text(face = "bold", size = 18, color = "#1A1A1A", margin = margin(b = 30)),
+    plot.subtitle = element_text(size = 11, color = "#666666", margin = margin(b = 20)),
+    plot.caption  = element_text(size = 8, color = "#999999", margin = margin(t = 20)),
+    
+    # NEW: Specific spacing for Histogram Labels
+    # Increased 'r' (right) margin for Y to move "Count" away from the grid
+    axis.title.y = element_text(size = 13, color = "#333333", margin = margin(r = 20)),
+    # Increased 't' (top) margin for X to move "Degree" away from numbers
+    axis.title.x = element_text(size = 13, color = "#333333", margin = margin(t = 10)),
+    
+    # Background: Soft "Paper" feel instead of stark white
+    panel.background = element_rect(fill = "#FFFFFF", color = NA),
+    plot.background  = element_rect(fill = "#FFFFFF", color = NA),
+    
+    # Grids: Subtle hairlines to let the data (nodes/edges/bars) pop
+    panel.grid.major = element_line(color = "#FFFFFF", linewidth = 0.3),
+    panel.grid.minor = element_blank(),
+    
+    # Legend: Clean and centered at the top
+    legend.position   = "top",
+    legend.title      = element_text(face = "bold", size = 10),
+    legend.text       = element_text(size = 9),
+    legend.background = element_blank(),
+    
+    # Margin: Overall plot breathing room
+    plot.margin = margin(30, 30, 30, 30)
+  )
+```
+
+# Introduction
+
+This report presents a comprehensive statistical analysis of the MUSAE GitHub developer social network. The dataset comprises 37,700 GitHub users connected by 289,003 mutual-follower edges. Each developer carries a binary attribute (`ml_target`) indicating whether they are primarily a machine-learning developer (1) or not (0).
+
+We follow the analytical pipeline from Kolaczyk and Csardi's *Statistical Analysis of Network Data with R*, progressing through seven chapters:
+
+1. **Introduction** -- dataset description and research questions.
+2. **Manipulating Network Data** -- loading, constructing, and validating the graph.
+3. **Visualizing Network Data** -- practical layouts for large networks.
+4. **Descriptive Analysis** -- degree, centrality, cohesion, community structure, assortativity.
+5. **Mathematical Models** -- comparing the observed graph to Erdos--Renyi and configuration model baselines.
+6. **Statistical Models** -- dyad-level logistic regression, stochastic block model, and spectral embedding.
+7. **Network Topology Inference** -- link prediction via heuristic scores and stacked classification.
+
+The central questions are: What structural properties characterize the GitHub developer network? Does it exhibit small-world or scale-free behavior? Can local topology predict missing links?
+
+# Manipulating Network Data
+
+## Loading the Data
+
+```{r ch2-load-data}
+edges_df  <- read_csv("../musae_git_edges.csv", show_col_types = FALSE)
+target_df <- read_csv("../musae_git_target.csv", show_col_types = FALSE)
+```
+
+## Constructing the Graph
+
+```{r ch2-create-graph}
+g <- graph_from_data_frame(edges_df, vertices = target_df, directed = FALSE)
+g <- simplify(g)
+```
+
+```{r ch2-overview}
+overview <- tibble(
+  Nodes        = vcount(g),
+  Edges        = ecount(g),
+  Density      = graph.density(g),
+  Simple       = is.simple(g),
+  Connected    = is.connected(g)
+)
+kable(overview, digits = 6, caption = "Graph overview")
+```
+
+## Data Quality Checks
+
+```{r ch2-quality}
+quality <- tibble(
+  `Self-loops`     = sum(which_loop(g)),
+  `Multi-edges`    = sum(which_multiple(g)),
+  `Isolated nodes` = sum(degree(g) == 0)
+)
+kable(quality, caption = "Data quality checks")
+```
+
+## Attribute Summary
+
+```{r ch2-ml-target}
+ml_counts <- target_df %>%
+  count(ml_target) %>%
+  mutate(fraction = n / sum(n))
+kable(ml_counts, digits = 4, caption = "ml\\_target class balance")
+write_csv(ml_counts, file.path(OUT_DIR, "ch2_ml_target_balance.csv"))
+
+```
+
+## Top Hub Nodes
+
+```{r ch2-top-hubs}
+deg_all <- degree(g)
+top_hubs <- tibble(
+  id        = as.integer(V(g)$name),
+  name      = V(g)$name,
+  degree    = deg_all,
+  ml_target = as.integer(V(g)$ml_target)
+) %>%
+  slice_max(degree, n = 15)
+
+kable(top_hubs, caption = "Top 15 nodes by degree")
+write_csv(top_hubs, file.path(OUT_DIR, "ch2_top_hubs.csv"))
+```
+
+# Visualizing Network Data
+
+With 37,700 nodes, full-graph visualization is impractical. We apply three strategies: a high k-core subgraph with spring layout, an ego-centric view of the top hub, and a community-colored subgraph.
+
+## K-Core Subgraph with Spring Layout
+
+```{r ch3-kcore-extract}
+core_num <- coreness(g)
+core_threshold <- 20
+g_core <- induced_subgraph(g, V(g)[core_num >= core_threshold])
+cat("High-core subgraph:", vcount(g_core), "nodes,", ecount(g_core), "edges\n")
+```
+
+```{r ch3-spring-layout, fig.width=9, fig.height=9}
+set.seed(42)
+lay_fr <- layout_with_fr(g_core, niter = 500)
+
+V(g_core)$color <- ifelse(as.integer(V(g_core)$ml_target) == 0,
+                           COLOR_PRIMARY, COLOR_SECONDARY)
+V(g_core)$size  <- 2 + sqrt(degree(g_core)) * 0.4
+
+pdf(file.path(OUT_DIR, "ch3_high_core_spring.pdf"), width = 10, height = 10)
+plot(g_core,
+     layout       = lay_fr,
+     vertex.label = NA,
+     vertex.frame.color = NA,
+     edge.color   = adjustcolor(COLOR_NEUTRAL, alpha.f = 0.15),
+     edge.width   = 0.3,
+     main         = sprintf("High k-core (k >= %d) subgraph: %d nodes",
+                            core_threshold, vcount(g_core)))
+legend("bottomleft",
+       legend = c("ml_target = 0", "ml_target = 1"),
+       col    = c(COLOR_PRIMARY, COLOR_SECONDARY),
+       pch    = 19, pt.cex = 1.5, bty = "n")
+invisible(dev.off())
+```
+
+## Ego Network of the Top Hub
+
+```{r ch3-ego-network, fig.width=9, fig.height=9}
+hub_idx <- which.max(deg_all)
+g_ego   <- make_ego_graph(g, order = 1, nodes = hub_idx)[[1]]
+
+V(g_ego)$color <- ifelse(as.integer(V(g_ego)$ml_target) == 0,
+                          COLOR_PRIMARY, COLOR_SECONDARY)
+V(g_ego)$size  <- ifelse(V(g_ego)$name == V(g)$name[hub_idx], 8, 2)
+
+set.seed(42)
+lay_ego <- layout_with_kk(g_ego)
+
+pdf(file.path(OUT_DIR, "ch3_ego_hub.pdf"), width = 10, height = 10)
+plot(g_ego,
+     layout       = lay_ego,
+     vertex.label = NA,
+     vertex.frame.color = NA,
+     edge.color   = adjustcolor(COLOR_NEUTRAL, alpha.f = 0.1),
+     edge.width   = 0.2,
+     main         = sprintf("Ego network of top hub (degree = %d)", deg_all[hub_idx]))
+invisible(dev.off())
+```
+
+## Community-Colored Subgraph
+
+```{r ch3-community-vis, fig.width=9, fig.height=9}
+comm_core <- cluster_fast_greedy(g_core)
+mem_core  <- membership(comm_core)
+V(g_core)$color <- PALETTE_DEEP[(mem_core - 1) %% length(PALETTE_DEEP) + 1]
+
+pdf(file.path(OUT_DIR, "ch3_community_colored.pdf"), width = 10, height = 10)
+plot(g_core,
+     layout       = lay_fr,
+     vertex.label = NA,
+     vertex.frame.color = NA,
+     vertex.size  = 2 + sqrt(degree(g_core)) * 0.4,
+     edge.color   = adjustcolor(COLOR_NEUTRAL, alpha.f = 0.15),
+     edge.width   = 0.3,
+     main         = sprintf("Community structure (fast-greedy, %d communities)",
+                            length(comm_core)))
+invisible(dev.off())
+```
+
+# Descriptive Analysis of Network Characteristics
+
+## Degree Distribution
+
+```{r ch4-degree-stats}
+deg <- degree(g)
+deg_summary <- tibble(
+  Mean   = mean(deg),
+  SD     = sd(deg),
+  Median = median(deg),
+  Min    = min(deg),
+  Max    = max(deg),
+  P90    = quantile(deg, 0.90),
+  P99    = quantile(deg, 0.99)
+)
+kable(deg_summary, digits = 2, caption = "Degree distribution summary")
+write_csv(deg_summary, file.path(OUT_DIR, "ch4_degree_stats.csv"))
+```
+
+```{r ch4-degree-ccdf, fig.width=7, fig.height=5}
+deg_sorted <- sort(deg)
+n_nodes    <- length(deg_sorted)
+ccdf_vals  <- 1 - seq_len(n_nodes) / n_nodes
+
+deg_df <- tibble(degree = deg_sorted, ccdf = pmax(ccdf_vals, 1e-8))
+
+p_ccdf <- ggplot(deg_df, aes(x = degree, y = ccdf)) +
+  geom_point(alpha = 0.4, size = 0.6, color = COLOR_PRIMARY) +
+  scale_x_log10() + scale_y_log10() +
+  labs(x = "Degree (log)", y = "CCDF (log)",
+       title = "Degree Distribution: Log-Log CCDF") +
+  theme_network
+ggsave(file.path(OUT_DIR, "loglog_degree_distribution.pdf"), p_ccdf, width = 7, height = 5)
+p_ccdf
+```
+
+```{r ch4-degree-hist, fig.width=8, fig.height=4.5}
+p_hist <- ggplot(tibble(degree = deg), aes(x = degree)) +
+  geom_histogram(bins = 900, fill = COLOR_PRIMARY, color = "#FFFFFF", linewidth = 0.2) +
+  labs(x = "Degree (linear scale)", y = "Count",
+       title = "Linear Degree Histogram") +
+  theme_network
+p_hist <- p_hist +
+  coord_cartesian(xlim = c(0, 1000))
+ggsave(file.path(OUT_DIR, "linear_degree_histogram.pdf"), p_hist, width = 7, height = 4)
+p_hist
+```
+
+```{r ch4-degree-hist, fig.width=8, fig.height=4.5}
+p_hist <- ggplot(tibble(degree = deg), aes(x = degree)) +
+  # Using a small binwidth or specific bins for log scales is usually cleaner
+  geom_histogram(bins = 90, fill = COLOR_PRIMARY, color = "#FFFFFF", linewidth = 0.2) +
+  # Set limits here; 1 is the usual start for degree distributions
+  scale_x_log10(limits = c(1, 2000)) + 
+  labs(x = "Degree (log scale)", 
+       y = "Count",
+       title = "Logiarithmic Degree Histogram") +
+  theme_network
+
+ggsave(file.path(OUT_DIR, "log_log_degree_histogram.pdf"), p_hist, width = 7, height = 4)
+p_hist
+```
+
+## Centrality Measures
+
+```{r ch4-centrality, cache=TRUE}
+deg_cent     <- degree(g, normalized = TRUE)
+close_cent   <- closeness(g, normalized = TRUE)
+between_cent <- betweenness(g, normalized = TRUE)
+eigen_cent   <- eigen_centrality(g)$vector
+pr_cent      <- page_rank(g, damping = 0.85)$vector
+```
+
+```{r ch4-centrality-table}
+centrality_df <- tibble(
+  id               = as.integer(V(g)$name),
+  name             = V(g)$name,
+  ml_target        = as.integer(V(g)$ml_target),
+  degree           = deg,
+  degree_centrality = deg_cent,
+  closeness        = close_cent,
+  betweenness      = between_cent,
+  eigenvector      = eigen_cent,
+  pagerank         = pr_cent
+)
+
+centrality_df %>%
+  select(degree_centrality, closeness, betweenness, eigenvector, pagerank) %>%
+  summary() %>%
+  kable(caption = "Centrality measure summaries")
+```
+
+```{r ch4-top-pagerank, fig.width=8, fig.height=6}
+top20_pr <- centrality_df %>%
+  slice_max(pagerank, n = 20) %>%
+  mutate(label = paste0(id, ":", substr(name, 1, 12)),
+         ml_fac = factor(ml_target, levels = c(0, 1)))
+
+p_pr <- ggplot(top20_pr, aes(x = reorder(label, pagerank), y = pagerank, fill = ml_fac)) +
+  geom_col() +
+  coord_flip() +
+  scale_fill_manual(values = c("0" = COLOR_PRIMARY, "1" = COLOR_SECONDARY),
+                    labels = c("0" = "Non-ML", "1" = "ML")) +
+  labs(x = NULL, y = "PageRank", fill = "ml_target",
+       title = "Top 20 Nodes by PageRank") +
+  theme_network
+ggsave(file.path(OUT_DIR, "ch4_top_pagerank.pdf"), p_pr, width = 8, height = 6)
+p_pr
+
+write_csv(top20_pr %>% select(-label, -ml_fac),
+          file.path(OUT_DIR, "ch4_top_centrality.csv"))
+```
+
+```{r ch4-centrality-corr, fig.width=6, fig.height=5}
+cor_mat <- centrality_df %>%
+  select(degree_centrality, closeness, betweenness, eigenvector, pagerank) %>%
+  cor(use = "complete.obs")
+
+cor_mat
+```
+
+```{r}
+cor_long <- as.data.frame(as.table(cor_mat)) %>%
+  rename(Var1 = Var1, Var2 = Var2, Correlation = Freq)
+
+p_corr <- ggplot(cor_long, aes(x = Var1, y = Var2, fill = Correlation)) +
+  geom_tile(color = "white") +
+  geom_text(aes(label = sprintf("%.2f", Correlation)), size = 3) +
+  scale_fill_gradient2(low = COLOR_SECONDARY, mid = "white", high = COLOR_PRIMARY,
+                       midpoint = 0, limits = c(-1, 1)) +
+  labs(title = "Centrality Measure Correlations") +
+  theme_network +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1),
+        axis.title = element_blank())
+ggsave(file.path(OUT_DIR, "centrality_correlation.pdf"), p_corr, width = 6, height = 5)
+p_corr
+```
+
+```{r}
+# 1. Reorder the matrix (Optional but recommended for visual patterns)
+# This groups similar centrality measures together
+dd <- as.dist((1 - cor_mat) / 2)
+hc <- hclust(dd)
+cor_mat_ordered <- cor_mat[hc$order, hc$order]
+
+# 2. Convert to long format and remove the upper triangle
+# This makes the plot much cleaner and less "busy"
+cor_long <- as.data.frame(as.table(cor_mat_ordered)) %>%
+  rename(Var1 = Var1, Var2 = Var2, Correlation = Freq) %>%
+  mutate(Correlation = round(Correlation, 2))
+
+# Optional: Hide the upper triangle for a professional look
+cor_long <- cor_long %>%
+  filter(as.numeric(Var1) >= as.numeric(Var2))
+
+# 3. Create the improved plot
+p_corr <- ggplot(cor_long, aes(x = Var1, y = Var2, fill = Correlation)) +
+  # Use a subtle border for the tiles
+  geom_tile(color = "white", size = 0.5) +
+  # Conditional text coloring: use white text for dark backgrounds, black for light
+  geom_text(aes(label = sprintf("%.2f", Correlation), 
+                color = abs(Correlation) > 0.7), 
+            size = 3.5, fontface = "bold", show.legend = FALSE) +
+  # Keep your specific palette
+  scale_fill_gradient2(low = COLOR_SECONDARY, mid = "white", high = COLOR_PRIMARY,
+                       midpoint = 0, limits = c(-1, 1),
+                       name = "Pearson\nCorr.") +
+  # Text color logic: White text on dark tiles, grey on light tiles
+  scale_color_manual(values = c("TRUE" = "white", "FALSE" = "grey20")) +
+  labs(title = "Centrality Measure Correlations",
+       subtitle = "Variables ordered by hierarchical clustering") +
+  theme_network + 
+  theme(
+    axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1),
+    axis.title = element_blank(),
+    panel.grid.major = element_blank(), # Remove grid for a cleaner look
+    legend.position = "right",
+    plot.title = element_text(face = "bold", size = 14),
+    plot.subtitle = element_text(color = "grey40", size = 10)
+  ) +
+  coord_fixed() # Ensures tiles are perfectly square
+
+# Save and Display
+ggsave(file.path(OUT_DIR, "centrality_correlation_refined.pdf"), p_corr, width = 7, height = 6)
+p_corr
+```
+
+```{r}
+library(tidyverse)
+
+# 1. Create a mapping for your labels
+# Format: "New Name" = "Old Name"
+label_map <- c(
+  "Degree"      = "degree_centrality",
+  "Closeness"   = "closeness",
+  "Betweenness" = "betweenness",
+  "Eigenvector" = "eigenvector",
+  "PageRank"    = "pagerank"
+)
+
+# 2. Update your long-format data frame
+cor_long <- as.data.frame(as.table(cor_mat)) %>%
+  rename(Var1 = Var1, Var2 = Var2, Correlation = Freq) %>%
+  mutate(
+    Var1 = recode(Var1, !!!label_map),
+    Var2 = recode(Var2, !!!label_map)
+  )
+
+# 3. Plot with your existing styling
+p_corr <- ggplot(cor_long, aes(x = Var1, y = Var2, fill = Correlation)) +
+  geom_tile(color = "white") +
+  geom_text(aes(label = sprintf("%.2f", Correlation)), size = 3) +
+  scale_fill_gradient2(low = COLOR_SECONDARY, mid = "white", high = COLOR_PRIMARY,
+                       midpoint = 0, limits = c(-1, 1)) +
+  labs(title = "Centrality Measure Correlations") +
+  theme_network +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1),
+        axis.title = element_blank())
+
+# Save and view
+ggsave(file.path(OUT_DIR, "ch4_centrality_correlation.pdf"), p_corr, width = 6, height = 5)
+p_corr
+```
+```{r}
+# 1. Define your mapping (Technical Name = "Display Name")
+# This matches the current labels in your image exactly
+clean_labels <- c(
+  "degree_centrality" = "Degree",
+  "closeness"         = "Closeness",
+  "betweenness"       = "Betweenness",
+  "eigenvector"       = "Eigenvector",
+  "pagerank"          = "PageRank"
+)
+
+# 2. Update your plot code
+p_corr <- ggplot(cor_long, aes(x = Var1, y = Var2, fill = Correlation)) +
+  geom_tile(color = "white") +
+  geom_text(aes(label = sprintf("%.2f", Correlation)), size = 3) +
+  scale_fill_gradient2(low = COLOR_SECONDARY, mid = "white", high = COLOR_PRIMARY,
+                       midpoint = 0, limits = c(0, 1)) +
+  
+  # Keep your clean discrete labels
+  scale_x_discrete(labels = clean_labels) +
+  scale_y_discrete(labels = clean_labels) +
+  
+  # UPDATE: Added x and y axis titles here
+  labs(
+    title = "Centrality Measure Correlations",
+    x = " ",
+    y = " "
+  ) +
+  theme_network +
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1),
+    # REMOVED: axis.title = element_blank() (otherwise labels won't show)
+    axis.title = element_text(size = 10, face = "bold") # Optional: style the titles
+  )
+
+# Save and view
+ggsave(file.path(OUT_DIR, "centrality_correlation.pdf"), p_corr, width = 6, height = 5)
+
+p_corr
+```
+
+## K-Core Decomposition
+
+```{r ch4-kcore}
+core_dist <- tibble(core = core_num) %>%
+  count(core, name = "n_nodes") %>%
+  arrange(core)
+
+cat("Max k-core:", max(core_num), "\n")
+kable(head(core_dist, 20), caption = "K-core size distribution (first 20 values)")
+```
+
+```{r ch4-kcore-plot, fig.width=7, fig.height=4}
+p_kcore <- ggplot(core_dist, aes(x = core, y = n_nodes)) +
+  geom_col(fill = COLOR_PRIMARY) +
+  labs(x = "Core number", y = "Number of nodes",
+       title = "K-Core Size Distribution") +
+  theme_network
+ggsave(file.path(OUT_DIR, "kcore_distribution.pdf"), p_kcore, width = 7, height = 4)
+p_kcore
+```
+
+## Transitivity and Clustering
+
+```{r ch4-transitivity}
+trans_global    <- transitivity(g, type = "global")
+trans_local_avg <- transitivity(g, type = "localaverage")
+trans_local     <- transitivity(g, type = "local")
+
+trans_tbl <- tibble(
+  `Global transitivity`        = trans_global,
+  `Mean local clustering coef.` = trans_local_avg
+)
+kable(trans_tbl, digits = 4, caption = "Transitivity summary")
+```
+```{r}
+length(articulation.points(g))
+vertex.connectivity(g)
+edge.connectivity(g)
+```
+
+
+```{r ch4-local-clustering, fig.width=7, fig.height=4}
+cc_df <- tibble(cc = trans_local[!is.nan(trans_local)])
+
+p_cc <- ggplot(cc_df, aes(x = cc)) +local 
+  geom_histogram(bins = 50, fill = COLOR_PRIMARY, color = "white", linewidth = 0.2) +
+  labs(x = "Local clustering coefficient", y = "Count",
+       title = "Distribution of Local Clustering Coefficients") +
+  theme_network
+ggsave(file.path(OUT_DIR, "local_clustering.pdf"), p_cc, width = 7, height = 4)
+p_cc
+```
+
+## Community Detection
+
+```{r ch4-community, cache=TRUE}
+comm_fg <- cluster_fast_greedy(g)
+cat("Fast-greedy: ", length(comm_fg), "communities, modularity =",
+    round(modularity(comm_fg), 4), "\n")
+```
+
+```{r ch4-community-sizes, fig.width=7, fig.height=4}
+# Extract sizes and their names (IDs) correctly
+comm_sizes <- tibble(
+    community = names(sizes(comm_fg)), 
+    size = as.numeric(sizes(comm_fg))
+  ) %>%
+  arrange(desc(size))
+comm_sizes
+```
+
+```{r}
+# Now take the top 10 for the plot
+top_10_comm <- head(comm_sizes, 10)
+
+p_comm <- ggplot(top_10_comm, aes(x = reorder(community, -size), y = size)) +
+  geom_col(fill = COLOR_PRIMARY) +
+  labs(x = "Community Size", 
+       y = "Number of Members",
+       title = "Top 10 Community Sizes") +
+  theme_network
+
+p_comm
+```
+
+## Assortativity
+
+```{r ch4-assortativity}
+assort_deg <- assortativity_degree(g)
+assort_ml  <- assortativity_nominal(g, types = as.integer(V(g)$ml_target) + 1)
+
+assort_tbl <- tibble(
+  Measure = c("Degree assortativity", "ml_target assortativity (nominal)"),
+  Value   = c(assort_deg, assort_ml)
+)
+kable(assort_tbl, digits = 4, caption = "Assortativity coefficients")
+```
+
+The negative degree assortativity ($r \approx -0.075$) indicates that high-degree hubs tend to connect to low-degree nodes (disassortative mixing). The positive ml\_target assortativity ($r \approx 0.378$) reveals strong homophily: developers of the same type preferentially connect.
+
+## Cohesion Metrics
+
+```{r ch4-cohesion, cache=TRUE}
+n_comp    <- components(g)$no
+diam_val  <- diameter(g, directed = FALSE)
+vert_conn <- vertex_connectivity(g)
+edge_conn <- edge_connectivity(g)
+
+approx_avg_path <- function(graph, n_samples = 500) {
+  nodes <- sample(V(graph), min(n_samples, vcount(graph)))
+  dists <- distances(graph, v = nodes)
+  mean(dists[dists < Inf & dists > 0])
+}
+avg_path <- approx_avg_path(g)
+
+cohesion_tbl <- tibble(
+  Components           = n_comp,
+  Diameter             = diam_val,
+  `Vertex connectivity` = vert_conn,
+  `Edge connectivity`   = edge_conn,
+  `Approx. avg path length` = round(avg_path, 3)
+)
+kable(cohesion_tbl, caption = "Cohesion metrics")
+```
+
+```{r ch4-save-global}
+global_metrics <- tibble(
+  nodes              = vcount(g),
+  edges              = ecount(g),
+  density            = graph.density(g),
+  components         = n_comp,
+  diameter           = diam_val,
+  avg_path_length    = avg_path,
+  transitivity       = trans_global,
+  local_clustering   = trans_local_avg,
+  degree_assortativity = assort_deg,
+  ml_target_assortativity = assort_ml,
+  modularity_fg      = modularity(comm_fg),
+  max_kcore          = max(core_num),
+  vertex_connectivity = vert_conn,
+  edge_connectivity   = edge_conn
+)
+write_csv(global_metrics, file.path(OUT_DIR, "ch4_global_metrics.csv"))
+```
+
+# Mathematical Models for Network Graphs
+
+We compare the observed network against classical random graph baselines to assess which features are structurally noteworthy.
+
+## Erdos--Renyi Model
+
+```{r ch5-er, cache=TRUE}
+n_g <- vcount(g)
+m_g <- ecount(g)
+p_er <- (2 * m_g) / (n_g * (n_g - 1))
+
+n_reps <- 5
+er_results <- map_dfr(1:n_reps, function(rep) {
+  set.seed(42 + rep)
+  g_er <- sample_gnp(n_g, p_er)
+  gc_er <- largest_component(g_er)
+  tibble(
+    model       = "Erdos-Renyi",
+    replicate   = rep,
+    nodes       = vcount(g_er),
+    edges       = ecount(g_er),
+    transitivity = transitivity(g_er, type = "global"),
+    avg_path    = approx_avg_path(gc_er, n_samples = 300)
+  )
+})
+```
+
+## Configuration Model
+
+```{r ch5-config, cache=TRUE}
+deg_seq <- degree(g)
+config_results <- map_dfr(1:n_reps, function(rep) {
+  set.seed(42 + 100 + rep)
+  g_cfg <- tryCatch(
+    sample_degseq(deg_seq, method = "simple"),
+    error = function(e) sample_degseq(deg_seq, method = "vl")
+  )
+  g_cfg <- simplify(g_cfg)
+  gc_cfg <- largest_component(g_cfg)
+  tibble(
+    model       = "Configuration",
+    replicate   = rep,
+    nodes       = vcount(g_cfg),
+    edges       = ecount(g_cfg),
+    transitivity = transitivity(g_cfg, type = "global"),
+    avg_path    = approx_avg_path(gc_cfg, n_samples = 300)
+  )
+})
+```
+
+## Model Comparison
+
+```{r ch5-comparison}
+obs_row <- tibble(
+  model       = "Observed",
+  replicate   = 0L,
+  nodes       = n_g,
+  edges       = m_g,
+  transitivity = trans_global,
+  avg_path    = avg_path
+)
+
+model_cmp <- bind_rows(obs_row, er_results, config_results)
+kable(model_cmp, digits = 4, caption = "Observed vs. random graph baselines")
+write_csv(model_cmp, file.path(OUT_DIR, "ch5_model_comparison.csv"))
+```
+
+```{r ch5-boxplot, fig.width=10, fig.height=5}
+plot_df <- model_cmp %>% filter(model != "Observed")
+obs <- model_cmp %>% filter(model == "Observed")
+
+plot_long <- plot_df %>%
+  pivot_longer(c(transitivity, avg_path), names_to = "metric", values_to = "value")
+obs_long <- obs %>%
+  pivot_longer(c(transitivity, avg_path), names_to = "metric", values_to = "value")
+
+p_cmp <- ggplot(plot_long, aes(x = model, y = value)) +
+  geom_boxplot(fill = COLOR_PRIMARY, alpha = 0.6, outlier.size = 1) +
+  geom_hline(data = obs_long, aes(yintercept = value),
+             color = COLOR_SECONDARY, linetype = "dashed", linewidth = 1) +
+  facet_wrap(~ metric, scales = "free_y") +
+  labs(title = "Observed Graph vs. Random Graph Baselines",
+       x = NULL, y = NULL) +
+  theme_network
+ggsave(file.path(OUT_DIR, "ch5_model_comparison.pdf"), p_cmp, width = 10, height = 5)
+p_cmp
+```
+
+## Small-World Assessment
+
+```{r ch5-small-world}
+er_trans_mean <- mean(er_results$transitivity)
+er_apl_mean   <- mean(er_results$avg_path)
+sigma <- (trans_global / er_trans_mean) / (avg_path / er_apl_mean)
+cat("Small-world sigma:", round(sigma, 2), "\n")
+```
+
+A sigma value much greater than 1 confirms small-world structure: the network has far higher clustering than an ER graph while maintaining comparable path lengths.
+
+## Preferential Attachment Diagnostic
+
+```{r ch5-power-law}
+pl_fit <- fit_power_law(deg)
+cat("Power-law alpha:", round(pl_fit$alpha, 3), "\n")
+cat("xmin:", pl_fit$xmin, "\n")
+cat("KS statistic:", round(pl_fit$KS.stat, 4), "\n")
+if (!is.null(pl_fit$KS.p)) {
+  cat("KS p-value:", round(pl_fit$KS.p, 4), "\n")
+} else {
+  cat("KS p-value: not computed (requires implementation = 'R.mle')\n")
+}
+```
+
+```{r ch5-save}
+ch5_summary <- tibble(
+  p_er     = p_er,
+  sigma    = sigma,
+  pl_alpha = pl_fit$alpha,
+  pl_xmin  = pl_fit$xmin
+)
+write_csv(ch5_summary, file.path(OUT_DIR, "ch5_summary.csv"))
+```
+
+# Statistical Models for Network Graphs
+
+## Dyad-Level Logistic Regression (ERGM Proxy)
+
+Full ERGMs are computationally infeasible on a 37,700-node graph. We instead fit a dyad-level logistic regression on sampled edges and non-edges, using local structural features as predictors.
+
+```{r ch6-link-features}
+compute_link_features <- function(pairs_mat, graph) {
+  n_pairs <- nrow(pairs_mat)
+  cn <- jc <- aa <- pa <- same_tgt <- numeric(n_pairs)
+  deg_g   <- degree(graph)
+  ml_vec  <- as.integer(V(graph)$ml_target)
+
+  for (i in seq_len(n_pairs)) {
+    u <- pairs_mat[i, 1]
+    v <- pairs_mat[i, 2]
+    nu <- neighbors(graph, u)
+    nv <- neighbors(graph, v)
+    common <- intersect(nu, nv)
+
+    cn[i] <- length(common)
+    union_size <- length(union(nu, nv))
+    jc[i] <- if (union_size > 0) cn[i] / union_size else 0
+
+    aa_score <- 0
+    for (w in common) {
+      dw <- deg_g[w]
+      if (dw > 1) aa_score <- aa_score + 1 / log(dw)
+    }
+    aa[i] <- aa_score
+    pa[i] <- deg_g[u] * deg_g[v]
+    same_tgt[i] <- as.integer(ml_vec[u] == ml_vec[v])
+  }
+
+  tibble(cn = cn, jaccard = jc, adamic_adar = aa,
+         pref_attach = pa, same_target = same_tgt)
+}
+```
+
+
+```{r ch6-sample-nonedges}
+sample_non_edges <- function(graph, n_samples) {
+  n <- vcount(graph)
+  A <- as_adjacency_matrix(graph, sparse = TRUE)
+  pairs <- matrix(NA_integer_, nrow = n_samples, ncol = 2)
+  count <- 0
+  while (count < n_samples) {
+    u <- sample.int(n, 1)
+    v <- sample.int(n, 1)
+    if (u != v && A[u, v] == 0) {
+      count <- count + 1
+      pairs[count, ] <- c(u, v)
+    }
+  }
+  pairs
+}
+```
+
+```{r ch6-dyad-logistic, cache=TRUE}
+set.seed(42)
+all_el    <- as_edgelist(g, names = FALSE)
+pos_idx   <- sample(nrow(all_el), min(60000, nrow(all_el)))
+pos_pairs <- all_el[pos_idx, , drop = FALSE]
+neg_pairs <- sample_non_edges(g, nrow(pos_pairs))
+
+X_pos <- compute_link_features(pos_pairs, g)
+X_neg <- compute_link_features(neg_pairs, g)
+
+dyad_df <- bind_rows(
+  X_pos %>% mutate(y = 1),
+  X_neg %>% mutate(y = 0)
+)
+dyad_df$log_pref_attach <- log1p(dyad_df$pref_attach)
+
+train_idx <- sample(nrow(dyad_df), floor(0.75 * nrow(dyad_df)))
+train <- dyad_df[train_idx, ]
+test  <- dyad_df[-train_idx, ]
+
+model_dyad <- glm(y ~ cn + jaccard + adamic_adar + same_target + log_pref_attach,
+                  data = train, family = binomial)
+
+dyad_probs <- predict(model_dyad, test, type = "response")
+dyad_auc   <- as.numeric(auc(roc(test$y, dyad_probs, quiet = TRUE)))
+cat("Dyad logistic AUC:", round(dyad_auc, 4), "\n")
+```
+
+```{r ch6-dyad-coefs}
+coef_df <- tibble(
+  feature     = names(coef(model_dyad))[-1],
+  coefficient = coef(model_dyad)[-1]
+) %>% arrange(desc(abs(coefficient)))
+
+kable(coef_df, digits = 4, caption = "Dyad logistic regression coefficients")
+write_csv(coef_df, file.path(OUT_DIR, "ch6_dyad_logistic_coefficients.csv"))
+```
+
+## Stochastic Block Model
+
+Using the binary `ml_target` attribute as the block assignment, we compute the within-block and between-block edge probabilities.
+
+```{r ch6-block-model}
+ml_vec <- as.integer(V(g)$ml_target)
+n0 <- sum(ml_vec == 0)
+n1 <- sum(ml_vec == 1)
+
+el <- as_edgelist(g, names = FALSE)
+types_u <- ml_vec[el[, 1]]
+types_v <- ml_vec[el[, 2]]
+
+count_00 <- sum(types_u == 0 & types_v == 0)
+count_11 <- sum(types_u == 1 & types_v == 1)
+count_01 <- ecount(g) - count_00 - count_11
+
+block_probs <- tibble(
+  block           = c("0-0", "0-1", "1-1"),
+  observed_edges  = c(count_00, count_01, count_11),
+  possible_pairs  = c(choose(n0, 2), n0 * n1, choose(n1, 2)),
+  edge_probability = observed_edges / possible_pairs
+)
+
+kable(block_probs, digits = 6, caption = "Block model edge probabilities")
+write_csv(block_probs, file.path(OUT_DIR, "ch6_block_model_probabilities.csv"))
+```
+
+## Spectral Embedding (Latent Space Proxy)
+
+```{r ch6-spectral, cache=TRUE}
+A_sparse   <- as_adjacency_matrix(g, sparse = TRUE)
+svd_result <- irlba(A_sparse, nv = 2)
+latent_xy  <- svd_result$u %*% diag(svd_result$d[1:2])
+```
+
+```{r ch6-latent-plot, fig.width=8, fig.height=6}
+set.seed(42)
+sample_idx <- sample(vcount(g), min(6000, vcount(g)))
+latent_sample <- tibble(
+  x       = latent_xy[sample_idx, 1],
+  y       = latent_xy[sample_idx, 2],
+  ml_fac  = factor(ml_vec[sample_idx], levels = c(0, 1))
+)
+
+p_latent <- ggplot(latent_sample, aes(x = x, y = y, color = ml_fac)) +
+  geom_point(size = 0.8, alpha = 0.5) +
+  scale_color_manual(values = c("0" = COLOR_PRIMARY, "1" = COLOR_SECONDARY),
+                     labels = c("0" = "Non-ML", "1" = "ML")) +
+  labs(x = "Latent dim 1", y = "Latent dim 2", color = "ml_target",
+       title = "2D Spectral Embedding (colored by ml_target)") +
+  theme_network
+ggsave(file.path(OUT_DIR, "ch6_latent_embedding.pdf"), p_latent, width = 8, height = 6)
+p_latent
+```
+
+```{r ch6-latent-classify}
+latent_df <- tibble(x = latent_xy[, 1], y = latent_xy[, 2], target = ml_vec)
+set.seed(42)
+lat_train_idx <- sample(nrow(latent_df), floor(0.75 * nrow(latent_df)))
+model_lat <- glm(target ~ x + y, data = latent_df[lat_train_idx, ], family = binomial)
+lat_probs <- predict(model_lat, latent_df[-lat_train_idx, ], type = "response")
+lat_auc   <- as.numeric(auc(roc(latent_df$target[-lat_train_idx], lat_probs, quiet = TRUE)))
+cat("Latent embedding classification AUC:", round(lat_auc, 4), "\n")
+```
+
+```{r ch6-save}
+ch6_summary <- tibble(
+  dyad_logistic_auc         = dyad_auc,
+  latent_embedding_auc      = lat_auc,
+  ml_target_assortativity   = assort_ml
+)
+write_csv(ch6_summary, file.path(OUT_DIR, "ch6_summary.csv"))
+kable(ch6_summary, digits = 4, caption = "Chapter 6 model summary")
+```
+
+# Network Topology Inference (Link Prediction)
+
+We evaluate the ability of local structural features to predict missing edges. We hold out 20% of edges as test positives and sample an equal number of non-edges as test negatives.
+
+## Train/Test Split
+
+```{r ch7-split, cache=TRUE}
+set.seed(42)
+all_edges <- as_edgelist(g, names = FALSE)
+n_edges   <- nrow(all_edges)
+test_edge_idx <- sample(seq_len(n_edges), floor(0.2 * n_edges))
+
+test_pos   <- all_edges[test_edge_idx, , drop = FALSE]
+train_el   <- all_edges[-test_edge_idx, , drop = FALSE]
+
+g_train <- delete_edges(g, test_edge_idx)
+cat("Training graph:", vcount(g_train), "nodes,", ecount(g_train), "edges\n")
+cat("Test positives:", nrow(test_pos), "\n")
+```
+
+```{r ch7-negatives, cache=TRUE}
+test_neg <- sample_non_edges(g, nrow(test_pos))
+cat("Test negatives:", nrow(test_neg), "\n")
+```
+
+## Compute Link Prediction Features
+
+```{r ch7-features, cache=TRUE}
+n_train_lp   <- min(60000, nrow(train_el))
+train_pos_lp <- train_el[sample(nrow(train_el), n_train_lp), , drop = FALSE]
+train_neg_lp <- sample_non_edges(g, n_train_lp)
+
+X_train_lp <- bind_rows(
+  compute_link_features(train_pos_lp, g_train) %>% mutate(y = 1),
+  compute_link_features(train_neg_lp, g_train) %>% mutate(y = 0)
+)
+
+X_test_lp <- bind_rows(
+  compute_link_features(test_pos, g_train) %>% mutate(y = 1),
+  compute_link_features(test_neg, g_train) %>% mutate(y = 0)
+)
+```
+
+## Individual Heuristic AUCs
+
+```{r ch7-individual-auc}
+heuristic_aucs <- tibble(
+  method = c("Common Neighbors", "Jaccard", "Adamic-Adar",
+             "Preferential Attachment", "Same ml_target"),
+  auc = c(
+    as.numeric(auc(roc(X_test_lp$y, X_test_lp$cn, quiet = TRUE))),
+    as.numeric(auc(roc(X_test_lp$y, X_test_lp$jaccard, quiet = TRUE))),
+    as.numeric(auc(roc(X_test_lp$y, X_test_lp$adamic_adar, quiet = TRUE))),
+    as.numeric(auc(roc(X_test_lp$y, X_test_lp$pref_attach, quiet = TRUE))),
+    as.numeric(auc(roc(X_test_lp$y, X_test_lp$same_target, quiet = TRUE)))
+  )
+)
+kable(heuristic_aucs %>% arrange(desc(auc)), digits = 4,
+      caption = "AUC for individual link prediction heuristics")
+```
+
+## Stacked Logistic Regression
+
+```{r ch7-stacked}
+model_stack <- glm(y ~ cn + jaccard + adamic_adar + pref_attach + same_target,
+                   data = X_train_lp, family = binomial)
+stack_probs <- predict(model_stack, X_test_lp, type = "response")
+stack_auc   <- as.numeric(auc(roc(X_test_lp$y, stack_probs, quiet = TRUE)))
+cat("Stacked logistic AUC:", round(stack_auc, 4), "\n")
+```
+
+## ROC Curve Comparison
+
+```{r ch7-roc, fig.width=8, fig.height=6}
+plot_roc <- function(roc_obj, label) {
+  tibble(fpr = 1 - roc_obj$specificities,
+         tpr = roc_obj$sensitivities,
+         method = label)
+}
+
+roc_stack <- roc(X_test_lp$y, stack_probs, quiet = TRUE)
+roc_cn    <- roc(X_test_lp$y, X_test_lp$cn, quiet = TRUE)
+roc_aa    <- roc(X_test_lp$y, X_test_lp$adamic_adar, quiet = TRUE)
+roc_pa    <- roc(X_test_lp$y, X_test_lp$pref_attach, quiet = TRUE)
+
+roc_all <- bind_rows(
+  plot_roc(roc_stack, sprintf("Stacked LR (AUC=%.3f)", stack_auc)),
+  plot_roc(roc_cn,    sprintf("Common Neighbors (AUC=%.3f)", as.numeric(auc(roc_cn)))),
+  plot_roc(roc_aa,    sprintf("Adamic-Adar (AUC=%.3f)", as.numeric(auc(roc_aa)))),
+  plot_roc(roc_pa,    sprintf("Pref. Attach. (AUC=%.3f)", as.numeric(auc(roc_pa))))
+)
+
+p_roc <- ggplot(roc_all, aes(x = fpr, y = tpr, color = method)) +
+  geom_line(linewidth = 0.8) +
+  geom_abline(slope = 1, intercept = 0, linetype = "dashed", color = COLOR_NEUTRAL) +
+  scale_color_manual(values = c(COLOR_PRIMARY, COLOR_SECONDARY,
+                                COLOR_ACCENT, "#DD8452")) +
+  labs(x = "False Positive Rate", y = "True Positive Rate",
+       title = "Link Prediction: ROC Curve Comparison", color = "Method") +
+  theme_network +
+  theme(legend.position = c(0.65, 0.25))
+ggsave(file.path(OUT_DIR, "ch7_link_prediction_roc.pdf"), p_roc, width = 8, height = 6)
+p_roc
+```
+
+```{r ch7-auc-bar, fig.width=7, fig.height=4}
+all_aucs <- bind_rows(
+  heuristic_aucs,
+  tibble(method = "Stacked Logistic", auc = stack_auc)
+) %>% arrange(desc(auc))
+
+p_auc <- ggplot(all_aucs, aes(x = reorder(method, auc), y = auc)) +
+  geom_col(fill = COLOR_PRIMARY) +
+  coord_flip() +
+  labs(x = NULL, y = "AUC", title = "Link Prediction AUC Comparison") +
+  theme_network
+ggsave(file.path(OUT_DIR, "ch7_auc_comparison.pdf"), p_auc, width = 7, height = 4)
+p_auc
+
+write_csv(all_aucs, file.path(OUT_DIR, "ch7_link_prediction_auc.csv"))
+```
+
+# Conclusion
+
+This analysis reveals several key properties of the GitHub developer social network:
+
+- **Scale-free structure**: The degree distribution follows a heavy-tailed power law, with a small number of hubs accumulating thousands of connections.
+- **Small-world properties**: The network exhibits far higher clustering than an Erdos--Renyi random graph while maintaining short average path lengths ($\sigma \gg 1$).
+- **Strong homophily**: The positive ml\_target assortativity and the stochastic block model confirm that developers of the same type connect preferentially.
+- **Effective link prediction**: Combining local heuristics (common neighbors, Adamic--Adar, preferential attachment) in a stacked logistic regression achieves strong AUC, with preferential attachment being the most powerful single predictor.
+
+## Saved Artifacts
+
+```{r artifacts}
+artifacts <- sort(list.files(OUT_DIR, recursive = FALSE))
+cat("Files in", OUT_DIR, ":\n")
+for (f in artifacts) cat("-", f, "\n")
+```

@@ -1,0 +1,1270 @@
+---
+title: "MUSAE GitHub Network Analysis (Chapters 2-7 Lens, R)"
+author: "Codex"
+date: "2026-03-08"
+format:
+  html:
+    toc: true
+    code-fold: false
+execute:
+  echo: true
+  warning: false
+  message: false
+---
+
+## Scope
+
+This report follows the Chapter 2-7 flow from *Statistical Analysis of Network Data with R*:
+
+- Chapter 2: Manipulate graph data and decorate vertices with attributes.
+- Chapter 3: Visualize the graph with practical layouts for large networks.
+- Chapter 4: Describe graph characteristics (degree, centrality, cohesion, assortativity).
+- Chapter 5: Compare observed structure to mathematical random-graph baselines.
+- Chapter 6: Fit statistical network-style models (dyad logistic proxy, block model, latent embedding).
+- Chapter 7: Perform topology inference through link prediction.
+
+```{r}
+library(igraph)
+library(dplyr)
+library(readr)
+library(ggplot2)
+library(tidyr)
+
+set.seed(42)
+out_dir <- "codex_outputs"
+dir.create(out_dir, showWarnings = FALSE, recursive = TRUE)
+
+# Unified color palette (seaborn deep)
+# Updated color palette: More vibrant but professionally balanced
+COLOR_PRIMARY   <- "#2A52BE" # Cerulean Blue
+COLOR_SECONDARY <- "#E63946" # Soft Crimson
+COLOR_ACCENT    <- "#2A9D8F" # Persian Green
+COLOR_NEUTRAL   <- "#457B9D" # Steel Blue
+PALETTE_DEEP    <- c(COLOR_PRIMARY, COLOR_SECONDARY, COLOR_ACCENT, 
+                     "#F4A261", "#8338EC", "#FFBE0B")
+
+# Re-defined theme_network with a premium aesthetic
+# Re-defined theme_network with premium aesthetic + histogram-specific spacing
+theme_codex <- theme_minimal(base_size = 12, base_family = "sans") +
+  theme(
+    # Titles: Stronger hierarchy
+    plot.title    = element_text(face = "bold", size = 18, color = "#1A1A1A", margin = margin(b = 30)),
+    plot.subtitle = element_text(size = 11, color = "#666666", margin = margin(b = 20)),
+    plot.caption  = element_text(size = 8, color = "#999999", margin = margin(t = 20)),
+    
+    # NEW: Specific spacing for Histogram Labels
+    # Increased 'r' (right) margin for Y to move "Count" away from the grid
+    axis.title.y = element_text(size = 13, color = "#333333", margin = margin(r = 20)),
+    # Increased 't' (top) margin for X to move "Degree" away from numbers
+    axis.title.x = element_text(size = 13, color = "#333333", margin = margin(t = 10)),
+    
+    # Background: Soft "Paper" feel instead of stark white
+    panel.background = element_rect(fill = "#FFFFFF", color = NA),
+    plot.background  = element_rect(fill = "#FFFFFF", color = NA),
+    
+    # Grids: Subtle hairlines to let the data (nodes/edges/bars) pop
+    panel.grid.major = element_line(color = "#FFFFFF", linewidth = 0.3),
+    panel.grid.minor = element_blank(),
+    
+    # Legend: Clean and centered at the top
+    legend.position   = "top",
+    legend.title      = element_text(face = "bold", size = 10),
+    legend.text       = element_text(size = 9),
+    legend.background = element_blank(),
+    
+    # Margin: Overall plot breathing room
+    plot.margin = margin(30, 30, 30, 30)
+  )
+theme_set(theme_codex)
+
+open_pdf_device <- function(path, width, height) {
+  if (capabilities("cairo")) {
+    grDevices::cairo_pdf(path, width = width, height = height)
+  } else {
+    grDevices::pdf(path, width = width, height = height, useDingbats = FALSE)
+  }
+}
+```
+
+```{r}
+edge_key <- function(u, v) {
+  ifelse(u < v, paste(u, v, sep = "|"), paste(v, u, sep = "|"))
+}
+
+auc_score <- function(y, score) {
+  y <- as.integer(y)
+  n_pos <- sum(y == 1)
+  n_neg <- sum(y == 0)
+  if (n_pos == 0 || n_neg == 0) {
+    return(NA_real_)
+  }
+  r <- rank(score)
+  (sum(r[y == 1]) - n_pos * (n_pos + 1) / 2) / (n_pos * n_neg)
+}
+
+make_roc_df <- function(y, score, n_thresh = 200) {
+  thresholds <- seq(0, 1, length.out = n_thresh)
+  rows <- lapply(thresholds, function(t) {
+    pred <- as.integer(score >= t)
+    tp <- sum(pred == 1 & y == 1)
+    fp <- sum(pred == 1 & y == 0)
+    fn <- sum(pred == 0 & y == 1)
+    tn <- sum(pred == 0 & y == 0)
+    tpr <- ifelse(tp + fn == 0, NA_real_, tp / (tp + fn))
+    fpr <- ifelse(fp + tn == 0, NA_real_, fp / (fp + tn))
+    data.frame(threshold = t, tpr = tpr, fpr = fpr)
+  })
+  bind_rows(rows)
+}
+```
+
+```{r}
+approx_average_path_length <- function(graph, sample_size = 256, seed = 42) {
+  set.seed(seed)
+  v_all <- V(graph)
+  if (length(v_all) == 0) {
+    return(NA_real_)
+  }
+  k <- min(sample_size, length(v_all))
+  starts <- sample(v_all, size = k, replace = FALSE)
+  dvals <- c()
+  for (s in starts) {
+    d <- distances(graph, v = s, to = v_all, mode = "all")
+    dvals <- c(dvals, as.numeric(d[is.finite(d)]))
+  }
+  mean(dvals)
+}
+
+sample_non_edges <- function(n_nodes, existing_keys, n_samples, forbidden_keys = character(), seed = 42) {
+  set.seed(seed)
+  sampled <- character()
+  out_u <- integer()
+  out_v <- integer()
+
+  existing_env <- new.env(hash = TRUE, parent = emptyenv())
+  for (k in existing_keys) existing_env[[k]] <- TRUE
+  forbidden_env <- new.env(hash = TRUE, parent = emptyenv())
+  for (k in forbidden_keys) forbidden_env[[k]] <- TRUE
+  seen_env <- new.env(hash = TRUE, parent = emptyenv())
+
+  while (length(out_u) < n_samples) {
+    u <- sample.int(n_nodes, 1) - 1L
+    v <- sample.int(n_nodes, 1) - 1L
+    if (u == v) next
+    k <- edge_key(u, v)
+
+    if (!is.null(existing_env[[k]])) next
+    if (!is.null(forbidden_env[[k]])) next
+    if (!is.null(seen_env[[k]])) next
+
+    seen_env[[k]] <- TRUE
+    out_u <- c(out_u, u)
+    out_v <- c(out_v, v)
+  }
+
+  tibble(u = out_u, v = out_v)
+}
+```
+
+```{r}
+stratified_split <- function(y, train_frac = 0.75, seed = 42) {
+  set.seed(seed)
+  pos <- which(y == 1)
+  neg <- which(y == 0)
+  train_pos <- sample(pos, floor(length(pos) * train_frac))
+  train_neg <- sample(neg, floor(length(neg) * train_frac))
+  train_idx <- sort(c(train_pos, train_neg))
+  test_idx <- setdiff(seq_along(y), train_idx)
+  list(train = train_idx, test = test_idx)
+}
+
+compute_link_features <- function(pairs, neighbors_by_id, degree_map, ml_target) {
+  n_pairs <- nrow(pairs)
+  cn <- numeric(n_pairs)
+  jc <- numeric(n_pairs)
+  aa <- numeric(n_pairs)
+  pa <- numeric(n_pairs)
+  same <- numeric(n_pairs)
+
+  for (i in seq_len(n_pairs)) {
+    u <- pairs$u[i] + 1L
+    v <- pairs$v[i] + 1L
+    nu <- neighbors_by_id[[u]]
+    nv <- neighbors_by_id[[v]]
+    inter <- intersect(nu, nv)
+    union_size <- length(union(nu, nv))
+
+    cn[i] <- length(inter)
+    jc[i] <- ifelse(union_size > 0, length(inter) / union_size, 0)
+
+    if (length(inter) > 0) {
+      deg_w <- degree_map[inter + 1L]
+      aa[i] <- sum(ifelse(deg_w > 1, 1 / log(deg_w), 0))
+    } else {
+      aa[i] <- 0
+    }
+
+    pa[i] <- degree_map[u] * degree_map[v]
+    same[i] <- as.numeric(ml_target[u] == ml_target[v])
+  }
+
+  tibble(
+    common_neighbors = cn,
+    jaccard = jc,
+    adamic_adar = aa,
+    preferential_attachment = pa,
+    same_ml_target = same
+  )
+}
+```
+
+```{r}
+row_from_graph <- function(graph, model_name, rep_id, seed_base = 42) {
+  comp <- components(graph)
+  giant_id <- which.max(comp$csize)
+  giant_vids <- V(graph)[comp$membership == giant_id]
+  giant <- induced_subgraph(graph, vids = giant_vids)
+
+  fg <- cluster_fast_greedy(giant)
+
+  tibble(
+    model = model_name,
+    replicate = rep_id,
+    nodes = vcount(graph),
+    edges = ecount(graph),
+    transitivity = transitivity(graph, type = "global"),
+    approx_avg_path_length = approx_average_path_length(giant, sample_size = 128, seed = seed_base + rep_id),
+    modularity = modularity(fg)
+  )
+}
+```
+
+## Data Loading
+
+```{r}
+edges_df <- read_csv("musae_git_edges.csv", show_col_types = FALSE)
+target_df <- read_csv("musae_git_target.csv", show_col_types = FALSE)
+```
+
+```{r}
+n_nodes <- max(target_df$id) + 1L
+all_ids <- as.character(0:(n_nodes - 1L))
+
+edge_mat <- as.matrix(edges_df[, c("id_1", "id_2")])
+mode(edge_mat) <- "character"
+g <- graph_from_edgelist(edge_mat, directed = FALSE)
+
+missing_ids <- setdiff(all_ids, V(g)$name)
+if (length(missing_ids) > 0) {
+  g <- add_vertices(g, nv = length(missing_ids), name = missing_ids)
+}
+
+```
+
+```{r}
+name_vec <- character(n_nodes)
+name_vec[target_df$id + 1L] <- target_df$name
+
+ml_target <- integer(n_nodes)
+ml_target[target_df$id + 1L] <- target_df$ml_target
+
+vertex_ids <- as.integer(V(g)$name)
+V(g)$dev_name <- name_vec[vertex_ids + 1L]
+V(g)$ml_target <- ml_target[vertex_ids + 1L]
+
+ed_key_df <- igraph::as_data_frame(g, what = "edges")
+edge_key_set <- unique(edge_key(as.integer(ed_key_df$from), as.integer(ed_key_df$to)))
+```
+
+```{r}
+overview <- tibble(
+  nodes = vcount(g),
+  edges = ecount(g),
+  density = edge_density(g),
+  is_connected = is_connected(g)
+)
+
+print(overview)
+```
+
+## Chapter 2: Manipulating Network Data
+
+```{r}
+degree_named <- degree(g)
+degree_map <- integer(n_nodes)
+degree_map[as.integer(names(degree_named)) + 1L] <- as.integer(degree_named)
+
+ml_counts <- target_df %>%
+  count(ml_target, name = "count") %>%
+  mutate(fraction = count / sum(count))
+
+top_hubs <- tibble(
+  id = 0:(n_nodes - 1L),
+  degree = degree_map,
+  name = name_vec,
+  ml_target = ml_target
+) %>%
+  arrange(desc(degree)) %>%
+  slice_head(n = 15)
+
+data_quality <- tibble(
+  self_loops = sum(which_loop(g)),
+  isolated_nodes = sum(degree_map == 0),
+  node_attributes = "dev_name, ml_target"
+)
+```
+
+```{r}
+print(data_quality)
+print(ml_counts)
+print(top_hubs)
+```
+
+```{r}
+write_csv(ml_counts, file.path(out_dir, "chapter2_ml_target_balance.csv"))
+write_csv(top_hubs, file.path(out_dir, "chapter2_top_hubs.csv"))
+```
+
+## Chapter 3: Visualizing Network Data
+
+```{r}
+core_named <- coreness(g)
+core_map <- integer(n_nodes)
+core_map[as.integer(names(core_named)) + 1L] <- as.integer(core_named)
+
+core_nodes <- which(core_map >= 20) - 1L
+if (length(core_nodes) >= 1200) {
+  vis_nodes <- sample(core_nodes, 1200)
+} else if (length(core_nodes) >= 300) {
+  vis_nodes <- core_nodes
+} else {
+  vis_nodes <- (order(degree_map, decreasing = TRUE)[1:1200] - 1L)
+}
+
+g_vis <- induced_subgraph(g, vids = as.character(vis_nodes))
+layout_vis <- layout_with_fr(g_vis, niter = 500)
+
+vis_deg <- degree(g_vis)
+vis_cols <- ifelse(V(g_vis)$ml_target == 0, "#1f77b4", "#d62728")
+vis_sizes <- 1 + 2.2 * sqrt(as.numeric(vis_deg)) / 3
+```
+
+```{r}
+plot_file <- file.path(out_dir, "chapter3_layout_high_core.pdf")
+plot(
+  g_vis,
+  layout = layout_vis,
+  vertex.color = vis_cols,
+  vertex.size = vis_sizes,
+  vertex.label = NA,
+  edge.width = 0.3,
+  edge.color = adjustcolor("#999999", alpha.f = 0.2),
+  main = sprintf("Chapter 3 view: spring layout of sampled %s-node high-core subgraph", vcount(g_vis))
+)
+
+open_pdf_device(plot_file, width = 10.5, height = 8.5)
+plot(
+  g_vis,
+  layout = layout_vis,
+  vertex.color = vis_cols,
+  vertex.size = vis_sizes,
+  vertex.label = NA,
+  edge.width = 0.3,
+  edge.color = adjustcolor("#999999", alpha.f = 0.2),
+  main = sprintf("Chapter 3 view: spring layout of sampled %s-node high-core subgraph", vcount(g_vis))
+)
+dev.off()
+```
+
+## Chapter 4: Descriptive Analysis of Graph Characteristics
+
+```{r}
+degree_vals <- as.numeric(degree_map)
+
+degree_stats <- tibble(
+  mean_degree = mean(degree_vals),
+  std_degree = sd(degree_vals),
+  median_degree = median(degree_vals),
+  max_degree = max(degree_vals),
+  p90_degree = as.numeric(quantile(degree_vals, 0.90)),
+  p99_degree = as.numeric(quantile(degree_vals, 0.99))
+)
+
+ccdf_df <- tibble(
+  degree = sort(degree_vals),
+  ccdf = 1 - (seq_along(degree_vals) / length(degree_vals))
+)
+```
+
+```{r}
+ccdf_plot <- ggplot(ccdf_df, aes(x = degree, y = pmax(ccdf, 1e-8))) +
+  geom_point(alpha = 0.45, size = 0.4) +
+  scale_x_log10() +
+  scale_y_log10() +
+  labs(title = "Chapter 4: Degree CCDF (log-log)", x = "Degree", y = "CCDF") +
+  theme_codex
+
+print(ccdf_plot)
+ggsave(file.path(out_dir, "chapter4_degree_ccdf.pdf"), ccdf_plot, width = 8, height = 5, dpi = 240)
+```
+
+```{r}
+pagerank_named <- page_rank(g)$vector
+pagerank_map <- numeric(n_nodes)
+pagerank_map[as.integer(names(pagerank_named)) + 1L] <- as.numeric(pagerank_named)
+
+centrality_df <- tibble(
+  id = 0:(n_nodes - 1L),
+  name = name_vec,
+  ml_target = ml_target,
+  degree = degree_map,
+  degree_centrality = degree_map / (n_nodes - 1),
+  pagerank = pagerank_map,
+  core_number = core_map
+)
+
+top_central <- centrality_df %>%
+  arrange(desc(pagerank)) %>%
+  slice_head(n = 20)
+
+global_metrics <- tibble(
+  components = components(g)$no,
+  transitivity = transitivity(g, type = "global"),
+  degree_assortativity = assortativity_degree(g, directed = FALSE),
+  ml_target_assortativity = assortativity_nominal(g, as.factor(V(g)$ml_target), directed = FALSE),
+  approx_avg_path_length = approx_average_path_length(g, sample_size = 256, seed = 42),
+  max_core = max(core_map)
+)
+```
+
+```{r}
+print(degree_stats)
+print(global_metrics)
+print(top_central)
+```
+
+```{r}
+top_plot <- top_central %>%
+  arrange(pagerank) %>%
+  mutate(label = paste0(id, ":", substr(name, 1, 10)))
+
+top_pr_plot <- ggplot(top_plot, aes(x = reorder(label, pagerank), y = pagerank)) +
+  geom_col(fill = "#2ca02c") +
+  coord_flip() +
+  labs(title = "Chapter 4: Top 20 nodes by PageRank", x = "Node", y = "PageRank") +
+  theme_codex
+
+print(top_pr_plot)
+ggsave(file.path(out_dir, "chapter4_top_pagerank.pdf"), top_pr_plot, width = 9, height = 6, dpi = 240)
+```
+
+```{r}
+write_csv(degree_stats, file.path(out_dir, "chapter4_degree_stats.csv"))
+write_csv(global_metrics, file.path(out_dir, "chapter4_global_metrics.csv"))
+write_csv(top_central, file.path(out_dir, "chapter4_top_centrality.csv"))
+```
+
+## Chapter 4A: Extended Plot Suite
+
+```{r}
+degree_df <- tibble(degree = degree_vals)
+rank_degree_df <- tibble(
+  rank = seq_along(degree_vals),
+  degree = sort(degree_vals, decreasing = TRUE)
+)
+
+deg_hist_linear <- ggplot(degree_df, aes(x = degree)) +
+  geom_histogram(bins = 60, fill = "#1f77b4", alpha = 0.8) +
+  labs(title = "Degree Histogram (Linear Scale)", x = "Degree", y = "Count") +
+  theme_codex
+
+deg_hist_log <- ggplot(degree_df %>% filter(degree > 0), aes(x = degree)) +
+  geom_histogram(bins = 70, fill = "#ff7f0e", alpha = 0.8) +
+  scale_x_log10() +
+  scale_y_log10() +
+  labs(title = "Degree Histogram (Log-Log)", x = "Degree (log10)", y = "Count (log10)") +
+  theme_codex
+
+rank_degree_plot <- ggplot(rank_degree_df %>% filter(degree > 0), aes(x = rank, y = degree)) +
+  geom_line(color = "#2ca02c", linewidth = 0.5) +
+  scale_x_log10() +
+  scale_y_log10() +
+  labs(title = "Rank-Degree Plot (Log-Log)", x = "Rank", y = "Degree") +
+  theme_codex
+
+print(deg_hist_linear)
+print(deg_hist_log)
+print(rank_degree_plot)
+
+ggsave(file.path(out_dir, "chapter4_degree_hist_linear.pdf"), deg_hist_linear, width = 8, height = 5, dpi = 240)
+ggsave(file.path(out_dir, "chapter4_degree_hist_log.pdf"), deg_hist_log, width = 8, height = 5, dpi = 240)
+ggsave(file.path(out_dir, "chapter4_rank_degree.pdf"), rank_degree_plot, width = 8, height = 5, dpi = 240)
+```
+
+```{r}
+local_cc <- transitivity(g, type = "localundirected", isolates = "zero")
+local_cc_df <- tibble(local_clustering = local_cc)
+
+cc_plot <- ggplot(local_cc_df, aes(x = local_clustering)) +
+  geom_histogram(bins = 60, fill = "#9467bd", alpha = 0.8) +
+  labs(title = "Local Clustering Coefficient Distribution", x = "Local Clustering", y = "Count") +
+  theme_codex
+
+core_df <- tibble(core_number = core_map)
+core_plot <- ggplot(core_df, aes(x = core_number)) +
+  geom_histogram(binwidth = 1, fill = "#17becf", alpha = 0.85) +
+  labs(title = "k-Core Distribution", x = "Core Number", y = "Count") +
+  theme_codex
+
+print(cc_plot)
+print(core_plot)
+
+ggsave(file.path(out_dir, "chapter4_local_clustering.pdf"), cc_plot, width = 8, height = 5, dpi = 240)
+ggsave(file.path(out_dir, "chapter4_core_distribution.pdf"), core_plot, width = 8, height = 5, dpi = 240)
+```
+
+```{r}
+set.seed(42)
+path_sources <- sample(V(g), min(250, vcount(g)), replace = FALSE)
+dist_list <- vector("list", length(path_sources))
+
+for (i in seq_along(path_sources)) {
+  d <- distances(g, v = path_sources[i], to = V(g), mode = "all")
+  dist_list[[i]] <- as.numeric(d[is.finite(d) & d > 0])
+}
+
+path_dists <- unlist(dist_list, use.names = FALSE)
+path_df <- tibble(path_length = path_dists)
+
+path_plot <- ggplot(path_df, aes(x = path_length)) +
+  geom_histogram(binwidth = 1, fill = "#8c564b", alpha = 0.85) +
+  labs(title = "Sampled Shortest-Path Length Distribution", x = "Shortest Path Length", y = "Frequency") +
+  theme_codex
+
+print(path_plot)
+ggsave(file.path(out_dir, "chapter4_path_length_sample.pdf"), path_plot, width = 8, height = 5, dpi = 240)
+```
+```{r}
+print(mix_raw)
+```
+
+```{r}
+library(dplyr)
+library(ggplot2)
+library(scales) # For number formatting
+library(readr)
+library(igraph)
+
+# 1. Edge extraction 
+edge_types <- igraph::as_data_frame(g, what = "edges") %>%
+  transmute(
+    t1 = ml_target[as.integer(from) + 1L],
+    t2 = ml_target[as.integer(to) + 1L]
+  )
+
+# 2. Mixing matrix calculation
+mix_raw <- table(
+  factor(edge_types$t1, levels = c(0, 1)),
+  factor(edge_types$t2, levels = c(0, 1))
+)
+mix_mat <- mix_raw + t(mix_raw) - diag(diag(mix_raw))
+mix_df <- as.data.frame(mix_mat)
+mix_df
+# 3. Prepare dataframe for plotting
+mix_df <- as.data.frame(as.table(mix_mat)) %>%
+  # rename for cleaner downstream syntax
+  rename(ml_target_1 = Var1, ml_target_2 = Var2, edges = Freq) %>%
+  # Create a logical column to determine text contrast (white text for high edge counts)
+  mutate(text_color = ifelse(edges > max(edges) / 2, "white", "black"))
+
+# 4. Create the polished plot
+mix_plot <- ggplot(mix_df, aes(x = ml_target_1, y = ml_target_2, fill = edges)) +
+  # Use a subtle border for tiles
+  geom_tile(color = "white", linewidth = 0.5) +
+  # Dynamic text color + comma formatting for readability
+  geom_text(aes(label = scales::comma(edges), color = text_color), 
+            size = 5, fontface = "bold", show.legend = FALSE) +
+  scale_color_identity() + # Tells ggplot to use the literal colors ("white", "black") from the column
+  # Use a modern, highly readable palette
+  scale_fill_viridis_c(
+    option = "mako",       # Try "plasma" or "viridis" if you prefer different hues
+    direction = -1,        # Flips the gradient so darker = higher counts
+    begin = 0.1, end = 0.9,# Prevents the extremes from being too dark or too light
+    labels = scales::comma,
+    guide = guide_colorbar(
+      title.position = "top",
+      barwidth = 1.5,
+      barheight = 10,
+      frame.colour = "black",
+      ticks.colour = "black"
+    )
+  ) +
+  # Force perfectly square tiles and remove outer padding
+  coord_fixed(expand = FALSE) +
+  labs(
+    title = "Mixing Matrix by Target Class",
+    subtitle = "Undirected edge distribution between nodes",
+    y = "Start Node",
+    x = "End Node",
+    fill = "Edge Count"
+  ) +
+  # Applying a clean base theme (you can append + theme_codex here if you still want it)
+  theme_minimal(base_size = 14) +
+  theme(
+    plot.title = element_text(face = "bold", size = 16, margin = margin(b = 5)),
+    plot.subtitle = element_text(color = "gray30", size = 12, margin = margin(b = 15)),
+    axis.title = element_text(face = "bold", size = 13),
+    axis.text = element_text(size = 12),
+    legend.position = "right",
+    legend.title = element_text(face = "bold", size = 11),
+    panel.grid = element_blank() # Removes distracting grid lines behind the tiles
+  ) + theme_network
+
+# Print and save
+print(mix_plot)
+
+ggsave(file.path(out_dir, "chapter4_mixing_heatmap.pdf"), mix_plot, 
+       width = 7, height = 5.5, dpi = 300) # Slightly widened to accommodate the legend
+write_csv(mix_df %>% select(-text_color), file.path(out_dir, "chapter4_mixing_matrix.csv"))
+```
+
+```{r}
+louv <- cluster_louvain(g)
+community_sizes <- tibble(
+  community = seq_along(sizes(louv)),
+  size = as.integer(sizes(louv))
+) %>%
+  arrange(desc(size))
+
+community_summary <- tibble(
+  num_communities = nrow(community_sizes),
+  modularity = modularity(louv),
+  largest_community = max(community_sizes$size),
+  median_community = median(community_sizes$size)
+)
+
+community_plot <- community_sizes %>%
+  slice_head(n = 30) %>%
+  mutate(community = factor(community, levels = community)) %>%
+  ggplot(aes(x = community, y = size)) +
+  geom_col(fill = "#3182bd") +
+  labs(title = "Top 30 Louvain Community Sizes", x = "Community ID", y = "Size") +
+  theme_codex +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1))
+
+print(community_plot)
+print(community_summary)
+
+ggsave(file.path(out_dir, "chapter4_community_sizes.pdf"), community_plot, width = 11, height = 4.8, dpi = 240)
+write_csv(community_sizes, file.path(out_dir, "chapter4_community_sizes.csv"))
+write_csv(community_summary, file.path(out_dir, "chapter4_community_summary.csv"))
+```
+```{r}
+library(tidyverse)
+library(scales)
+
+# 1. Prepare data
+plot_data <- community_sizes %>%
+  slice_head(n = 30) %>%
+  mutate(community = factor(community, levels = community))
+
+# 2. Create the Clean Bar Chart
+community_plot <- ggplot(plot_data, aes(x = community, y = size)) +
+  # Use a slightly softer blue and a fixed width for a modern look
+  geom_col(fill = "#4575b4", width = 0.75) + 
+  
+  # Add the numbers directly on top of the bars
+  geom_text(
+    aes(label = comma(size)), 
+    vjust = -0.5,           # Position slightly above the bar
+    size = 2,               # Subtle text size
+    color = "#333333",
+    fontface = "bold"
+  ) +
+  
+  # Improve the Scales
+  scale_y_continuous(
+    expand = expansion(mult = c(0, 0.15)), # Extra headroom for the labels
+    labels = comma
+  ) +
+  
+  # Professional Titles and Theme
+  labs(
+    title = "Top 30 Louvain Community Sizes",
+    subtitle = sprintf("Network Modularity: %.3f | Total Communities: %d", 
+                       community_summary$modularity, 
+                       community_summary$num_communities),
+    x = "Community ID",
+    y = "Node Count"
+  ) +
+  theme_minimal(base_size = 12) +
+  theme(
+    # Clean up gridlines
+    panel.grid.major.x = element_blank(),
+    panel.grid.minor = element_blank(),
+    panel.grid.major.y = element_line(color = "gray90", linetype = "dotted"),
+    
+    # Text styling
+    axis.text.x = element_text(angle = 0), # Kept at 0 for readability if IDs are short
+    plot.title = element_text(face = "bold", size = 16, margin = margin(b = 10)),
+    plot.subtitle = element_text(size = 11, color = "gray40", margin = margin(b = 20)),
+    axis.title = element_text(face = "italic", size = 10, color = "gray30")
+  )
+
+print(community_plot)
+```
+
+## Chapter 4B: Hierarchical Clustering Dendrogram
+
+```{r}
+hc_seed_nodes <- order(core_map, decreasing = TRUE)[1:min(260, n_nodes)] - 1L
+g_hc <- induced_subgraph(g, vids = as.character(hc_seed_nodes))
+
+comp_hc <- components(g_hc)
+g_hc <- induced_subgraph(g_hc, vids = V(g_hc)[comp_hc$membership == which.max(comp_hc$csize)])
+
+if (vcount(g_hc) > 180) {
+  set.seed(42)
+  keep <- sample(V(g_hc)$name, 180)
+  g_hc <- induced_subgraph(g_hc, vids = keep)
+}
+
+dmat <- distances(g_hc, mode = "all")
+if (any(!is.finite(dmat))) {
+  max_finite <- max(dmat[is.finite(dmat)])
+  dmat[!is.finite(dmat)] <- max_finite + 1
+}
+
+hc_fit <- hclust(as.dist(dmat), method = "average")
+```
+
+```{r}
+dend_file <- file.path(out_dir, "chapter4_hclust_dendrogram.pdf")
+plot(
+  hc_fit,
+  labels = FALSE,
+  hang = -1,
+  main = sprintf("Hierarchical Clustering Dendrogram (n = %s)", vcount(g_hc)),
+  xlab = "Sampled High-Core Nodes",
+  ylab = "Shortest-Path Distance"
+)
+
+open_pdf_device(dend_file, width = 10.5, height = 6.5)
+plot(
+  hc_fit,
+  labels = FALSE,
+  hang = -1,
+  main = sprintf("Hierarchical Clustering Dendrogram (n = %s)", vcount(g_hc)),
+  xlab = "Sampled High-Core Nodes",
+  ylab = "Shortest-Path Distance"
+)
+dev.off()
+```
+
+```{r}
+k_cut <- min(8, max(3, floor(sqrt(vcount(g_hc)) / 2)))
+hc_clusters <- cutree(hc_fit, k = k_cut)
+
+hc_cluster_sizes <- tibble(cluster = as.factor(hc_clusters)) %>%
+  count(cluster, name = "size") %>%
+  arrange(desc(size))
+
+hc_cluster_plot <- ggplot(hc_cluster_sizes, aes(x = reorder(cluster, -size), y = size)) +
+  geom_col(fill = "#756bb1") +
+  labs(
+    title = sprintf("Cluster Sizes from Dendrogram Cut (k = %s)", k_cut),
+    x = "Cluster",
+    y = "Size"
+  ) +
+  theme_codex
+
+print(hc_cluster_plot)
+ggsave(file.path(out_dir, "chapter4_hclust_cluster_sizes.pdf"), hc_cluster_plot, width = 7, height = 5, dpi = 240)
+write_csv(hc_cluster_sizes, file.path(out_dir, "chapter4_hclust_cluster_sizes.csv"))
+```
+
+## Chapter 4C: Laplacian Eigenvalue Analysis
+
+```{r}
+L_sparse <- laplacian_matrix(g, normalized = FALSE, sparse = TRUE)
+
+small_vals <- NA_real_
+large_vals <- NA_real_
+using_full_graph_spectral <- FALSE
+
+if (requireNamespace("RSpectra", quietly = TRUE)) {
+  small_vals <- tryCatch(
+    sort(Re(RSpectra::eigs_sym(L_sparse, k = 25, which = "SA")$values)),
+    error = function(e) NA_real_
+  )
+  large_vals <- tryCatch(
+    sort(Re(RSpectra::eigs_sym(L_sparse, k = 25, which = "LA")$values), decreasing = TRUE),
+    error = function(e) NA_real_
+  )
+  using_full_graph_spectral <- !all(is.na(small_vals)) && !all(is.na(large_vals))
+}
+
+if (!using_full_graph_spectral) {
+  spec_ids <- order(core_map, decreasing = TRUE)[1:min(900, n_nodes)] - 1L
+  g_spec_fb <- induced_subgraph(g, vids = as.character(spec_ids))
+  comp_fb <- components(g_spec_fb)
+  g_spec_fb <- induced_subgraph(g_spec_fb, vids = V(g_spec_fb)[comp_fb$membership == which.max(comp_fb$csize)])
+
+  L_fb <- laplacian_matrix(g_spec_fb, normalized = FALSE, sparse = FALSE)
+  eig_fb <- sort(eigen(L_fb, symmetric = TRUE, only.values = TRUE)$values)
+
+  small_vals <- eig_fb[1:min(25, length(eig_fb))]
+  large_vals <- rev(tail(eig_fb, min(25, length(eig_fb))))
+}
+
+fiedler_value <- ifelse(length(small_vals) >= 2, small_vals[2], NA_real_)
+near_zero_count <- sum(abs(small_vals) < 1e-8)
+largest_eig <- ifelse(length(large_vals) >= 1, large_vals[1], NA_real_)
+top_gap <- ifelse(length(large_vals) >= 2, large_vals[1] - large_vals[2], NA_real_)
+
+lap_summary <- tibble(
+  components = components(g)$no,
+  near_zero_eigenvalues = near_zero_count,
+  fiedler_value = fiedler_value,
+  largest_eigenvalue = largest_eig,
+  top_spectral_gap = top_gap,
+  used_full_graph = using_full_graph_spectral
+)
+```
+
+```{r}
+small_df <- tibble(index = seq_along(small_vals), eigenvalue = as.numeric(small_vals))
+large_df <- tibble(index = seq_along(large_vals), eigenvalue = as.numeric(large_vals))
+
+small_plot <- ggplot(small_df, aes(x = index, y = eigenvalue)) +
+  geom_line(color = "#e6550d") +
+  geom_point(color = "#e6550d", size = 1.5) +
+  labs(title = "Smallest Laplacian Eigenvalues", x = "Order", y = "Eigenvalue") +
+  theme_codex
+
+print(small_plot)
+ggsave(file.path(out_dir, "chapter4_laplacian_smallest_plot.pdf"), small_plot, width = 8, height = 5, dpi = 240)
+write_csv(small_df, file.path(out_dir, "chapter4_laplacian_smallest.csv"))
+write_csv(large_df, file.path(out_dir, "chapter4_laplacian_largest.csv"))
+```
+
+```{r}
+spec_ids <- order(degree_map, decreasing = TRUE)[1:min(420, n_nodes)] - 1L
+g_spec <- induced_subgraph(g, vids = as.character(spec_ids))
+comp_spec <- components(g_spec)
+g_spec <- induced_subgraph(g_spec, vids = V(g_spec)[comp_spec$membership == which.max(comp_spec$csize)])
+
+L_sub <- laplacian_matrix(g_spec, normalized = TRUE, sparse = FALSE)
+eig_sub <- sort(eigen(L_sub, symmetric = TRUE, only.values = TRUE)$values)
+
+eig_sub_df <- tibble(index = seq_along(eig_sub), eigenvalue = eig_sub)
+
+sub_spec_plot <- ggplot(eig_sub_df, aes(x = index, y = eigenvalue)) +
+  geom_line(color = "#31a354") +
+  labs(
+    title = sprintf("Normalized Laplacian Spectrum (Subgraph n = %s)", vcount(g_spec)),
+    x = "Eigenvalue Index",
+    y = "Eigenvalue"
+  ) +
+  theme_codex
+
+print(sub_spec_plot)
+ggsave(file.path(out_dir, "chapter4_laplacian_subgraph_spectrum.pdf"), sub_spec_plot, width = 8, height = 5, dpi = 240)
+write_csv(eig_sub_df, file.path(out_dir, "chapter4_laplacian_subgraph_spectrum.csv"))
+```
+
+```{r}
+print(lap_summary)
+
+cat("Laplacian interpretation notes:\\n")
+cat("- The multiplicity of eigenvalue 0 should match the number of connected components.\\n")
+cat("- Here, components =", lap_summary$components, "and near-zero smallest eigenvalues =", lap_summary$near_zero_eigenvalues, ".\\n")
+cat("- The second-smallest eigenvalue (Fiedler value) is", signif(lap_summary$fiedler_value, 6),
+    "which reflects algebraic connectivity (larger means more strongly connected).\\n")
+cat("- The largest eigenvalue is", signif(lap_summary$largest_eigenvalue, 6),
+    "and the top spectral gap is", signif(lap_summary$top_spectral_gap, 6),
+    "which summarize upper-spectrum spread tied to hub structure.\\n")
+
+write_csv(lap_summary, file.path(out_dir, "chapter4_laplacian_summary.csv"))
+```
+
+## Chapter 5: Mathematical Models for Network Graphs
+
+```{r}
+# --- Sample a subgraph to speed up model comparison ---
+set.seed(42)
+sample_n <- 5000
+sample_vids <- sample(V(g), sample_n)
+g_sub <- induced_subgraph(g, sample_vids)
+
+n_sub <- vcount(g_sub)
+m_sub <- ecount(g_sub)
+p_er <- (2 * m_sub) / (n_sub * (n_sub - 1))
+sub_ids <- V(g_sub)$name
+sub_deg <- degree(g_sub)
+
+model_rows <- list(row_from_graph(g_sub, "Observed", 0))
+num_reps <- 20
+
+for (rep in seq_len(num_reps)) {
+  g_er <- sample_gnp(n_sub, p_er, directed = FALSE, loops = FALSE)
+  V(g_er)$name <- sub_ids
+  model_rows[[length(model_rows) + 1]] <- row_from_graph(g_er, "Erdos-Renyi", rep)
+
+  g_cfg <- sample_degseq(sub_deg, method = "simple")
+  g_cfg <- simplify(g_cfg, remove.multiple = TRUE, remove.loops = TRUE)
+  V(g_cfg)$name <- sub_ids
+  model_rows[[length(model_rows) + 1]] <- row_from_graph(g_cfg, "Configuration", rep)
+}
+
+model_cmp <- bind_rows(model_rows)
+
+obs <- model_cmp %>% filter(model == "Observed")
+er_mean <- model_cmp %>%
+  filter(model == "Erdos-Renyi") %>%
+  summarise(
+    transitivity = mean(transitivity),
+    approx_avg_path_length = mean(approx_avg_path_length)
+  )
+
+small_world_score <- (obs$transitivity / er_mean$transitivity) /
+  (obs$approx_avg_path_length / er_mean$approx_avg_path_length)
+
+cut_tail <- quantile(degree_vals, 0.90)
+tail_vals <- degree_vals[degree_vals >= cut_tail]
+tail_tab <- as.data.frame(table(tail_vals))
+if (nrow(tail_tab) >= 2) {
+  fit <- lm(log(Freq) ~ log(as.numeric(as.character(tail_vals))), data = tail_tab)
+  tail_gamma <- -coef(fit)[2]
+} else {
+  tail_gamma <- NA_real_
+}
+
+chapter5_summary <- tibble(
+  p_er = p_er,
+  small_world_score_vs_er = small_world_score,
+  tail_exponent_gamma_estimate = tail_gamma
+)
+```
+
+```{r}
+print(model_cmp)
+print(chapter5_summary)
+```
+
+### Configuration Model vs Observed: Path Length & Modularity
+
+```{r}
+cfg_stats <- model_cmp %>%
+  filter(model == "Configuration") %>%
+  summarise(
+    path_length_mean = mean(approx_avg_path_length),
+    path_length_sd   = sd(approx_avg_path_length),
+    modularity_mean  = mean(modularity),
+    modularity_sd    = sd(modularity),
+    n_reps           = n()
+  )
+
+obs_path  <- obs$approx_avg_path_length
+obs_mod   <- obs$modularity
+
+cfg_path_z <- (obs_path - cfg_stats$path_length_mean) / cfg_stats$path_length_sd
+cfg_mod_z  <- (obs_mod  - cfg_stats$modularity_mean)  / cfg_stats$modularity_sd
+
+cfg_comparison <- tibble(
+  metric   = c("Avg Path Length", "Modularity"),
+  observed = c(obs_path, obs_mod),
+  cfg_mean = c(cfg_stats$path_length_mean, cfg_stats$modularity_mean),
+  cfg_sd   = c(cfg_stats$path_length_sd,   cfg_stats$modularity_sd),
+  z_score  = c(cfg_path_z, cfg_mod_z),
+  p_value  = 2 * pnorm(-abs(c(cfg_path_z, cfg_mod_z)))
+)
+
+cat("Configuration Model Summary (n =", cfg_stats$n_reps, "replicates):\n\n")
+print(cfg_comparison)
+write_csv(cfg_comparison, file.path(out_dir, "chapter5_cfg_comparison.csv"))
+```
+
+```{r}
+cfg_long <- model_cmp %>%
+  filter(model == "Configuration") %>%
+  pivot_longer(cols = c(approx_avg_path_length, modularity),
+               names_to = "metric", values_to = "value") %>%
+  mutate(metric = recode(metric,
+    approx_avg_path_length = "Avg Path Length",
+    modularity = "Modularity"))
+
+obs_lines <- tibble(
+  metric = c("Avg Path Length", "Modularity"),
+  obs_value = c(obs_path, obs_mod)
+)
+
+cfg_dist_plot <- ggplot(cfg_long, aes(x = value)) +
+  geom_histogram(bins = 15, fill = "steelblue", color = "white", alpha = 0.8) +
+  geom_vline(data = obs_lines, aes(xintercept = obs_value),
+             color = "red", linetype = "dashed", linewidth = 1) +
+  facet_wrap(~ metric, scales = "free") +
+  labs(
+    title = "Configuration Model Distributions vs Observed Network",
+    subtitle = "Red dashed line = observed value",
+    x = "Value", y = "Count"
+  ) +
+  theme_codex
+
+print(cfg_dist_plot)
+ggsave(file.path(out_dir, "chapter5_cfg_distributions.pdf"), cfg_dist_plot,
+       width = 10, height = 4.5, dpi = 240)
+```
+
+```{r}
+plot_df <- model_cmp %>%
+  filter(model != "Observed") %>%
+  pivot_longer(cols = c(transitivity, approx_avg_path_length, modularity),
+               names_to = "metric", values_to = "value")
+
+obs_long <- obs %>%
+  pivot_longer(cols = c(transitivity, approx_avg_path_length, modularity),
+               names_to = "metric", values_to = "obs_value")
+
+cmp_plot <- ggplot(plot_df, aes(x = model, y = value)) +
+  geom_boxplot() +
+  geom_hline(data = obs_long, aes(yintercept = obs_value), color = "red", linetype = "dashed") +
+  facet_wrap(~ metric, scales = "free_y") +
+  labs(title = "Chapter 5: Observed graph vs random-graph baselines", x = "Model", y = "Value") +
+  theme_codex
+
+print(cmp_plot)
+ggsave(file.path(out_dir, "chapter5_model_comparison.pdf"), cmp_plot, width = 14, height = 4.5, dpi = 240)
+```
+
+```{r}
+write_csv(model_cmp, file.path(out_dir, "chapter5_model_comparison.csv"))
+write_csv(chapter5_summary, file.path(out_dir, "chapter5_summary.csv"))
+```
+
+## Chapter 6: Statistical Models for Network Graphs
+
+```{r}
+neighbors_full <- vector("list", n_nodes)
+adj_full <- adjacent_vertices(g, V(g), mode = "all")
+for (i in seq_along(adj_full)) {
+  id <- as.integer(V(g)$name[i])
+  neighbors_full[[id + 1L]] <- as.integer(V(g)[adj_full[[i]]]$name)
+}
+
+all_edges <- igraph::as_data_frame(g, what = "edges") %>%
+  transmute(u = as.integer(from), v = as.integer(to))
+
+n_pos <- min(30000, nrow(all_edges))
+train_pos <- all_edges %>% slice_sample(n = n_pos)
+train_neg <- sample_non_edges(n_nodes, edge_key_set, n_pos, seed = 42)
+
+pairs_dyad <- bind_rows(train_pos, train_neg)
+y_dyad <- c(rep(1, n_pos), rep(0, n_pos))
+
+X_dyad <- compute_link_features(pairs_dyad, neighbors_full, degree_map, ml_target) %>%
+  mutate(log_degree_product = log1p(preferential_attachment)) %>%
+  select(common_neighbors, jaccard, adamic_adar, same_ml_target, log_degree_product)
+```
+
+```{r}
+split_dyad <- stratified_split(y_dyad, train_frac = 0.75, seed = 42)
+
+train_df <- cbind(y = y_dyad[split_dyad$train], X_dyad[split_dyad$train, ]) %>% as.data.frame()
+test_df <- cbind(y = y_dyad[split_dyad$test], X_dyad[split_dyad$test, ]) %>% as.data.frame()
+
+dyad_fit <- glm(y ~ ., data = train_df, family = binomial())
+dyad_pred <- predict(dyad_fit, newdata = test_df, type = "response")
+dyad_auc <- auc_score(test_df$y, dyad_pred)
+
+coef_df <- tibble(
+  feature = names(coef(dyad_fit))[-1],
+  coefficient = as.numeric(coef(dyad_fit)[-1])
+) %>%
+  arrange(desc(coefficient))
+```
+
+```{r}
+edge_ml <- all_edges %>%
+  mutate(
+    t1 = ml_target[u + 1L],
+    t2 = ml_target[v + 1L]
+  )
+
+count_00 <- sum(edge_ml$t1 == 0 & edge_ml$t2 == 0)
+count_11 <- sum(edge_ml$t1 == 1 & edge_ml$t2 == 1)
+count_01 <- sum(edge_ml$t1 != edge_ml$t2)
+
+n0 <- sum(ml_target == 0)
+n1 <- sum(ml_target == 1)
+
+block_probs <- tibble(
+  block = c("0-0", "0-1", "1-1"),
+  observed_edges = c(count_00, count_01, count_11),
+  possible_pairs = c(n0 * (n0 - 1) / 2, n0 * n1, n1 * (n1 - 1) / 2),
+  edge_probability = observed_edges / possible_pairs
+)
+```
+
+```{r}
+A_sparse <- as_adjacency_matrix(g, sparse = TRUE)
+latent_xy <- matrix(NA_real_, nrow = n_nodes, ncol = 2)
+
+if (requireNamespace("RSpectra", quietly = TRUE)) {
+  sv <- RSpectra::svds(A_sparse, k = 2)
+  latent_xy <- sv$u %*% diag(sv$d)
+} else if (requireNamespace("irlba", quietly = TRUE)) {
+  sv <- irlba::irlba(A_sparse, nv = 2, nu = 2)
+  latent_xy <- sv$u %*% diag(sv$d)
+}
+
+if (all(is.na(latent_xy))) {
+  latent_auc <- NA_real_
+} else {
+  latent_df <- tibble(y = ml_target, x1 = latent_xy[, 1], x2 = latent_xy[, 2])
+  split_lat <- stratified_split(latent_df$y, train_frac = 0.75, seed = 42)
+  latent_train <- latent_df[split_lat$train, ]
+  latent_test <- latent_df[split_lat$test, ]
+
+  latent_fit <- glm(y ~ x1 + x2, data = latent_train, family = binomial())
+  latent_pred <- predict(latent_fit, newdata = latent_test, type = "response")
+  latent_auc <- auc_score(latent_test$y, latent_pred)
+}
+```
+
+```{r}
+if (!all(is.na(latent_xy))) {
+  sample_n <- min(6000, n_nodes)
+  idx <- sample(seq_len(n_nodes), sample_n)
+  latent_plot_df <- tibble(
+    x = latent_xy[idx, 1],
+    y = latent_xy[idx, 2],
+    ml_target = factor(ml_target[idx])
+  )
+
+  latent_plot <- ggplot(latent_plot_df, aes(x = x, y = y, color = ml_target)) +
+    geom_point(size = 0.7, alpha = 0.55) +
+    scale_color_manual(values = c("0" = "#1f77b4", "1" = "#d62728")) +
+    labs(title = "Chapter 6: 2D latent embedding sample", x = "Latent dim 1", y = "Latent dim 2") +
+    theme_codex
+
+  print(latent_plot)
+  ggsave(file.path(out_dir, "chapter6_latent_embedding.pdf"), latent_plot, width = 8, height = 6, dpi = 240)
+}
+```
+
+```{r}
+chapter6_summary <- tibble(
+  dyad_logistic_auc = dyad_auc,
+  latent_embedding_target_auc = latent_auc,
+  ml_target_assortativity = assortativity_nominal(g, as.factor(V(g)$ml_target), directed = FALSE)
+)
+
+print(coef_df)
+print(block_probs)
+print(chapter6_summary)
+```
+
+```{r}
+write_csv(coef_df, file.path(out_dir, "chapter6_dyad_logistic_coefficients.csv"))
+write_csv(block_probs, file.path(out_dir, "chapter6_block_model_probabilities.csv"))
+write_csv(chapter6_summary, file.path(out_dir, "chapter6_summary.csv"))
+```
+
+## Chapter 7: Network Topology Inference (Link Prediction)
+
+```{r}
+all_edges <- igraph::as_data_frame(g, what = "edges") %>%
+  transmute(u = as.integer(from), v = as.integer(to))
+
+n_test <- floor(0.20 * nrow(all_edges))
+test_idx <- sample(seq_len(nrow(all_edges)), n_test)
+
+test_pos <- all_edges[test_idx, ]
+train_edges <- all_edges[-test_idx, ]
+
+train_edge_mat <- as.matrix(train_edges)
+mode(train_edge_mat) <- "character"
+g_train <- graph_from_edgelist(train_edge_mat, directed = FALSE)
+missing_train <- setdiff(all_ids, V(g_train)$name)
+if (length(missing_train) > 0) {
+  g_train <- add_vertices(g_train, nv = length(missing_train), name = missing_train)
+}
+g_train <- simplify(g_train, remove.multiple = TRUE, remove.loops = TRUE)
+
+test_neg <- sample_non_edges(n_nodes, edge_key_set, n_test, seed = 43)
+```
+
+```{r}
+n_train_lp <- min(30000, nrow(train_edges))
+train_pos_lp <- train_edges %>% slice_sample(n = n_train_lp)
+forbidden_keys <- edge_key(test_neg$u, test_neg$v)
+train_neg_lp <- sample_non_edges(n_nodes, edge_key_set, n_train_lp, forbidden_keys = forbidden_keys, seed = 44)
+
+neighbors_train <- vector("list", n_nodes)
+adj_train <- adjacent_vertices(g_train, V(g_train), mode = "all")
+for (i in seq_along(adj_train)) {
+  id <- as.integer(V(g_train)$name[i])
+  neighbors_train[[id + 1L]] <- as.integer(V(g_train)[adj_train[[i]]]$name)
+}
+
+deg_train_named <- degree(g_train)
+degree_train <- integer(n_nodes)
+degree_train[as.integer(names(deg_train_named)) + 1L] <- as.integer(deg_train_named)
+```
+
+```{r}
+X_train_lp <- compute_link_features(bind_rows(train_pos_lp, train_neg_lp), neighbors_train, degree_train, ml_target)
+y_train_lp <- c(rep(1, n_train_lp), rep(0, n_train_lp))
+
+X_test_lp <- compute_link_features(bind_rows(test_pos, test_neg), neighbors_train, degree_train, ml_target)
+y_test_lp <- c(rep(1, nrow(test_pos)), rep(0, nrow(test_neg)))
+```
+
+```{r}
+heuristic_cols <- c("common_neighbors", "jaccard", "adamic_adar", "preferential_attachment", "same_ml_target")
+lp_auc <- tibble(
+  model = heuristic_cols,
+  auc = sapply(heuristic_cols, function(col) auc_score(y_test_lp, X_test_lp[[col]]))
+)
+
+stack_train <- as.data.frame(cbind(y = y_train_lp, X_train_lp))
+stack_test <- as.data.frame(cbind(y = y_test_lp, X_test_lp))
+
+stack_fit <- glm(y ~ ., data = stack_train, family = binomial())
+stack_score <- predict(stack_fit, newdata = stack_test, type = "response")
+stack_auc <- auc_score(stack_test$y, stack_score)
+
+lp_auc <- bind_rows(lp_auc, tibble(model = "stacked_logistic", auc = stack_auc)) %>%
+  arrange(desc(auc))
+```
+
+```{r}
+roc_df <- make_roc_df(y_test_lp, stack_score, n_thresh = 250)
+
+roc_plot <- ggplot(roc_df, aes(x = fpr, y = tpr)) +
+  geom_line(color = "#2ca02c", linewidth = 0.9) +
+  geom_abline(intercept = 0, slope = 1, linetype = "dashed", color = "gray50") +
+  labs(
+    title = sprintf("Chapter 7: Link prediction ROC (AUC = %.3f)", stack_auc),
+    x = "False Positive Rate",
+    y = "True Positive Rate"
+  ) +
+  theme_codex
+
+print(roc_plot)
+ggsave(file.path(out_dir, "chapter7_link_prediction_roc.pdf"), roc_plot, width = 7, height = 5, dpi = 240)
+```
+
+```{r}
+print(lp_auc)
+write_csv(lp_auc, file.path(out_dir, "chapter7_link_prediction_auc.csv"))
+```
+
+## Artifacts
+
+```{r}
+artifacts <- sort(list.files(out_dir))
+cat("Saved files in codex_outputs/\n")
+for (f in artifacts) cat("-", f, "\n")
+```

@@ -1,0 +1,450 @@
+---
+import Entry from "./Entry.astro";
+import { SUBJECTS, YEAR_MIN, YEAR_MAX, countsByCategory, type Entry as E } from "../lib/data";
+
+interface Props {
+  entries: E[];
+  /** When set, the subject rail is hidden: the page is already one subject. */
+  lockedSubject?: string;
+}
+
+const { entries, lockedSubject } = Astro.props;
+const counts = countsByCategory(entries);
+---
+
+<div class="shell">
+  <aside class="rail">
+    <div class="rail-columns">
+      {
+        !lockedSubject && (
+          <div class="rail-group">
+            <h2 class="rail-title">Subject</h2>
+            {SUBJECTS.map((s) => (
+              <button
+                class="facet"
+                data-facet="category"
+                data-value={s.cat}
+                aria-pressed="false"
+                style={`color:var(${s.css})`}
+              >
+                <span class="dot" />
+                <span style="color:var(--ink)">{s.label}</span>
+                <span class="tally">{counts.get(s.cat) ?? 0}</span>
+              </button>
+            ))}
+          </div>
+        )
+      }
+
+      <div class="rail-group">
+        <h2 class="rail-title">Difficulty</h2>
+        <div class="range-row">
+          <span id="diff-out">1–10</span>
+        </div>
+        <div class="range">
+          <span class="range-track"></span>
+          <span class="range-fill" id="diff-fill"></span>
+          <label class="sr-only" for="diff-min">Minimum difficulty</label>
+          <input type="range" id="diff-min" min="1" max="10" value="1" />
+          <label class="sr-only" for="diff-max">Maximum difficulty</label>
+          <input type="range" id="diff-max" min="1" max="10" value="10" />
+        </div>
+      </div>
+
+      <div class="rail-group">
+        <h2 class="rail-title">Year</h2>
+        <div class="range-row">
+          <span id="year-out">{YEAR_MIN}–{YEAR_MAX}</span>
+        </div>
+        <div class="range">
+          <span class="range-track"></span>
+          <span class="range-fill" id="year-fill"></span>
+          <label class="sr-only" for="year-min">Earliest year</label>
+          <input type="range" id="year-min" min={YEAR_MIN} max={YEAR_MAX} value={YEAR_MIN} />
+          <label class="sr-only" for="year-max">Latest year</label>
+          <input type="range" id="year-max" min={YEAR_MIN} max={YEAR_MAX} value={YEAR_MAX} />
+        </div>
+      </div>
+
+      <div class="rail-group">
+        <h2 class="rail-title">Search</h2>
+        <label class="sr-only" for="q">Search problem text</label>
+        <input class="search" id="q" type="search" placeholder="polynomial, matrix, prime…" />
+      </div>
+
+      <div class="rail-group">
+        <h2 class="rail-title">Progress</h2>
+        <button class="facet" id="hide-solved" aria-pressed="false">
+          <span class="dot"></span>
+          <span style="color:var(--ink)">Hide solved</span>
+          <span class="tally" id="solved-count">0</span>
+        </button>
+      </div>
+
+      <div class="rail-group" id="account" hidden>
+        <h2 class="rail-title">Account</h2>
+        <div id="signed-out" hidden>
+          <p class="account-note">Sign in to keep your solved problems across devices.</p>
+          <form id="email-form">
+            <label class="sr-only" for="email">Email address</label>
+            <input class="search" id="email" type="email" required autocomplete="email" placeholder="you@example.com" />
+            <button class="account-btn" type="submit">Email me a sign-in link</button>
+          </form>
+          <button class="account-btn" id="github" type="button">Sign in with GitHub</button>
+        </div>
+        <div id="signed-in" hidden>
+          <p class="account-note">Signed in as <span id="who"></span></p>
+          <button class="account-btn" id="sign-out" type="button">Sign out</button>
+        </div>
+        <p class="account-note" id="account-msg" aria-live="polite"></p>
+      </div>
+    </div>
+
+    <button class="rail-reset" id="reset">Clear filters</button>
+  </aside>
+
+  <main class="stream">
+    <div class="stream-status">
+      <span id="count">{entries.length} problems</span>
+      <span id="sorted">Newest first</span>
+    </div>
+
+    <div id="list">
+      {entries.map((e, i) => <Entry entry={e} index={i} />)}
+    </div>
+
+    <p class="empty" id="empty" hidden>No problem matches these filters.</p>
+  </main>
+</div>
+
+<style>
+  .sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+  }
+
+  .account-note {
+    margin: 0 0 0.6rem;
+    font-size: 0.88rem;
+    line-height: 1.45;
+    color: var(--ink-mid);
+    overflow-wrap: anywhere;
+  }
+
+  .account-note:empty { display: none; }
+
+  #who { color: var(--ink); }
+
+  .account-btn {
+    display: block;
+    width: 100%;
+    margin: 0.5rem 0 0.6rem;
+    padding: 0.5rem 0.7rem;
+    background: none;
+    border: 1px solid var(--rule-strong);
+    border-radius: 2px;
+    font-family: var(--font-mono);
+    font-size: 0.66rem;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--ink);
+    cursor: pointer;
+    text-align: left;
+  }
+
+  .account-btn:hover { color: var(--accent); border-color: var(--accent); }
+  .account-btn:disabled { opacity: 0.5; cursor: progress; }
+</style>
+
+<script>
+  import { supabase } from "../lib/supabase";
+
+  const entries = [...document.querySelectorAll<HTMLElement>(".entry")];
+  const facets = [...document.querySelectorAll<HTMLButtonElement>('[data-facet="category"]')];
+  const q = document.querySelector<HTMLInputElement>("#q")!;
+  const dMin = document.querySelector<HTMLInputElement>("#diff-min")!;
+  const dMax = document.querySelector<HTMLInputElement>("#diff-max")!;
+  const yMin = document.querySelector<HTMLInputElement>("#year-min")!;
+  const yMax = document.querySelector<HTMLInputElement>("#year-max")!;
+  const diffOut = document.querySelector<HTMLElement>("#diff-out")!;
+  const yearOut = document.querySelector<HTMLElement>("#year-out")!;
+  const countOut = document.querySelector<HTMLElement>("#count")!;
+  const empty = document.querySelector<HTMLElement>("#empty")!;
+  const reset = document.querySelector<HTMLButtonElement>("#reset")!;
+  const diffFill = document.querySelector<HTMLElement>("#diff-fill")!;
+  const yearFill = document.querySelector<HTMLElement>("#year-fill")!;
+  const hideSolved = document.querySelector<HTMLButtonElement>("#hide-solved")!;
+  const solvedCount = document.querySelector<HTMLElement>("#solved-count")!;
+
+  const active = new Set<string>();
+
+  // Solved problems always live in this browser, and are mirrored to the
+  // `solved` table while someone is signed in. Every storage access has to
+  // survive localStorage being unavailable.
+  const KEY = "putnam-solved";
+
+  const readSolved = (): Set<string> => {
+    try {
+      const raw = localStorage.getItem(KEY);
+      const ids: unknown = raw ? JSON.parse(raw) : [];
+      return new Set(Array.isArray(ids) ? ids.filter((i): i is string => typeof i === "string") : []);
+    } catch {
+      return new Set();
+    }
+  };
+
+  const solved = readSolved();
+
+  const saveSolved = () => {
+    try { localStorage.setItem(KEY, JSON.stringify([...solved])); } catch {}
+  };
+
+  /** Sliders are a pair, so keep min <= max whichever handle moved. */
+  function clamp(a: HTMLInputElement, b: HTMLInputElement, movedMin: boolean) {
+    if (+a.value > +b.value) {
+      if (movedMin) b.value = a.value;
+      else a.value = b.value;
+    }
+  }
+
+  /**
+   * Paints the span between the two handles. Once both sit at the top of the
+   * range the max thumb covers the min one, so the min input is lifted above
+   * it to stay grabbable.
+   */
+  function paint(a: HTMLInputElement, b: HTMLInputElement, fill: HTMLElement) {
+    const lo = +a.min;
+    const span = +a.max - lo || 1;
+    const start = ((+a.value - lo) / span) * 100;
+    const end = ((+b.value - lo) / span) * 100;
+    fill.style.left = `${start}%`;
+    fill.style.width = `${Math.max(0, end - start)}%`;
+    a.style.zIndex = +a.value >= +b.max ? "2" : "1";
+  }
+
+  function apply() {
+    const hiding = hideSolved.getAttribute("aria-pressed") === "true";
+    const needle = q.value.trim().toLowerCase();
+    const d0 = +dMin.value, d1 = +dMax.value;
+    const y0 = +yMin.value, y1 = +yMax.value;
+
+    diffOut.textContent = d0 === d1 ? `${d0}` : `${d0}–${d1}`;
+    yearOut.textContent = y0 === y1 ? `${y0}` : `${y0}–${y1}`;
+
+    paint(dMin, dMax, diffFill);
+    paint(yMin, yMax, yearFill);
+
+    let shown = 0;
+    for (const el of entries) {
+      const d = +el.dataset.difficulty!;
+      const y = +el.dataset.year!;
+      const cats = el.dataset.categories!.split("|");
+
+      const ok =
+        d >= d0 && d <= d1 &&
+        y >= y0 && y <= y1 &&
+        !(hiding && solved.has(el.id)) &&
+        (active.size === 0 || cats.some((c) => active.has(c))) &&
+        (needle === "" ||
+          el.dataset.haystack!.includes(needle) ||
+          `${y} ${el.dataset.slot}`.toLowerCase().includes(needle));
+
+      el.hidden = !ok;
+      if (ok) shown++;
+    }
+
+    countOut.textContent = `${shown} problem${shown === 1 ? "" : "s"}`;
+    empty.hidden = shown !== 0;
+    solvedCount.textContent = String(entries.filter((el) => solved.has(el.id)).length);
+  }
+
+  /** Reflects one entry's solved state into the DOM. */
+  function mark(el: HTMLElement) {
+    const on = solved.has(el.id);
+    el.dataset.solved = String(on);
+    const btn = el.querySelector<HTMLButtonElement>("[data-solve]");
+    btn?.setAttribute("aria-pressed", String(on));
+    const text = btn?.querySelector(".solve-text");
+    if (text) text.textContent = on ? "Solved" : "Mark solved";
+  }
+
+  for (const el of entries) mark(el);
+
+  document.querySelector("#list")!.addEventListener("click", (e) => {
+    const btn = (e.target as HTMLElement).closest<HTMLButtonElement>("[data-solve]");
+    if (!btn) return;
+    const el = btn.closest<HTMLElement>(".entry")!;
+    const markedSolved = !solved.has(el.id);
+    markedSolved ? solved.add(el.id) : solved.delete(el.id);
+    saveSolved();
+    mark(el);
+    apply();
+    pushSolved(el, markedSolved);
+
+    const posthog = (window as Window & {
+      posthog?: {
+        capture: (event: string, properties: Record<string, unknown>) => void;
+        logger?: { info: (message: string, attributes: Record<string, string | number | boolean>) => void };
+      };
+    }).posthog;
+    const problem = {
+      problem_year: Number(el.dataset.year),
+      problem_slot: el.dataset.slot ?? "",
+      difficulty: Number(el.dataset.difficulty),
+    };
+
+    posthog?.capture(markedSolved ? "problem_marked_solved" : "problem_marked_unsolved", problem);
+    posthog?.logger?.info(
+      markedSolved ? "problem marked solved" : "problem marked unsolved",
+      { ...problem, progress_state: markedSolved ? "solved" : "unsolved" },
+    );
+  });
+
+  hideSolved.addEventListener("click", () => {
+    const on = hideSolved.getAttribute("aria-pressed") !== "true";
+    hideSolved.setAttribute("aria-pressed", String(on));
+    apply();
+  });
+
+  for (const f of facets) {
+    f.addEventListener("click", () => {
+      const v = f.dataset.value!;
+      const on = !active.has(v);
+      on ? active.add(v) : active.delete(v);
+      f.setAttribute("aria-pressed", String(on));
+      apply();
+    });
+  }
+
+  dMin.addEventListener("input", () => { clamp(dMin, dMax, true); apply(); });
+  dMax.addEventListener("input", () => { clamp(dMin, dMax, false); apply(); });
+  yMin.addEventListener("input", () => { clamp(yMin, yMax, true); apply(); });
+  yMax.addEventListener("input", () => { clamp(yMin, yMax, false); apply(); });
+  q.addEventListener("input", apply);
+
+  reset.addEventListener("click", () => {
+    active.clear();
+    for (const f of facets) f.setAttribute("aria-pressed", "false");
+    hideSolved.setAttribute("aria-pressed", "false");
+    q.value = "";
+    dMin.value = dMin.min; dMax.value = dMax.max;
+    yMin.value = yMin.min; yMax.value = yMax.max;
+    apply();
+  });
+
+  // ---- Account sync -------------------------------------------------------
+
+  const account = document.querySelector<HTMLElement>("#account")!;
+  const signedOut = document.querySelector<HTMLElement>("#signed-out")!;
+  const signedIn = document.querySelector<HTMLElement>("#signed-in")!;
+  const who = document.querySelector<HTMLElement>("#who")!;
+  const accountMsg = document.querySelector<HTMLElement>("#account-msg")!;
+  const emailForm = document.querySelector<HTMLFormElement>("#email-form")!;
+  const emailInput = document.querySelector<HTMLInputElement>("#email")!;
+  const github = document.querySelector<HTMLButtonElement>("#github")!;
+  const signOut = document.querySelector<HTMLButtonElement>("#sign-out")!;
+
+  const PROBLEM_ID = /^\d{4}-[AB][1-6]$/;
+  let userId: string | null = null;
+
+  const say = (msg: string) => { accountMsg.textContent = msg; };
+
+  /** Re-renders every entry after the solved set changed wholesale. */
+  function refresh() {
+    saveSolved();
+    for (const el of entries) mark(el);
+    apply();
+  }
+
+  /** Mirrors one toggle to the database, undoing it locally if the write fails. */
+  async function pushSolved(el: HTMLElement, on: boolean) {
+    if (!supabase || !userId) return;
+    const { error } = on
+      ? await supabase.from("solved").upsert({ problem_id: el.id }, { ignoreDuplicates: true })
+      : await supabase.from("solved").delete().eq("problem_id", el.id);
+    if (!error) return;
+    on ? solved.delete(el.id) : solved.add(el.id);
+    saveSolved();
+    mark(el);
+    apply();
+    say("Couldn't save that change. Check your connection and try again.");
+  }
+
+  /**
+   * On sign-in, the account and this browser each may hold progress the other
+   * lacks: upload what is only local, then adopt the union.
+   */
+  async function merge() {
+    if (!supabase) return;
+    const { data, error } = await supabase.from("solved").select("problem_id");
+    if (error) { say("Couldn't load your saved progress."); return; }
+    const remote = new Set(data.map((r) => r.problem_id as string));
+    const localOnly = [...solved].filter((id) => !remote.has(id) && PROBLEM_ID.test(id));
+    if (localOnly.length) {
+      const { error: upErr } = await supabase
+        .from("solved")
+        .upsert(localOnly.map((problem_id) => ({ problem_id })), { ignoreDuplicates: true });
+      if (upErr) say("Some solved problems from this browser couldn't be uploaded.");
+    }
+    for (const id of remote) solved.add(id);
+    refresh();
+  }
+
+  /** Where auth emails and OAuth send people back: the page they started on. */
+  const returnTo = () => location.origin + location.pathname;
+
+  if (supabase) {
+    const sb = supabase;
+    account.hidden = false;
+
+    sb.auth.onAuthStateChange((_event, session) => {
+      const next = session?.user ?? null;
+      signedIn.hidden = !next;
+      signedOut.hidden = !!next;
+      who.textContent = next?.email ?? next?.user_metadata?.user_name ?? "";
+
+      if (next && next.id !== userId) {
+        userId = next.id;
+        // Supabase warns against awaiting its own calls inside this callback.
+        setTimeout(merge, 0);
+      } else if (!next && userId) {
+        // The progress belongs to the account now; don't leave it behind on a
+        // shared machine.
+        userId = null;
+        solved.clear();
+        refresh();
+      }
+    });
+
+    emailForm.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const btn = emailForm.querySelector("button")!;
+      btn.disabled = true;
+      const { error } = await sb.auth.signInWithOtp({
+        email: emailInput.value.trim(),
+        options: { emailRedirectTo: returnTo() },
+      });
+      btn.disabled = false;
+      say(error ? `Couldn't send the link: ${error.message}` : "Check your inbox for a sign-in link.");
+    });
+
+    github.addEventListener("click", async () => {
+      const { error } = await sb.auth.signInWithOAuth({
+        provider: "github",
+        options: { redirectTo: returnTo() },
+      });
+      if (error) say(`GitHub sign-in failed: ${error.message}`);
+    });
+
+    signOut.addEventListener("click", async () => {
+      say("");
+      await sb.auth.signOut();
+    });
+  }
+
+  apply();
+</script>

@@ -1,0 +1,614 @@
+---
+import Base from '../layouts/Base.astro';
+---
+
+<Base title="Rising Stars — Breakout Signal Scanner" description="Discover GitHub repos with untapped potential — fast-growing projects that haven't blown up yet. Built for startup investors." active="rising">
+
+  <div class="page-header">
+    <h1>Rising Stars — Breakout Signal Scanner</h1>
+    <p class="subtitle">Find GitHub repos about to take off. Sorted by momentum — fast growth relative to size means untapped potential. These are your early signals.</p>
+    <p class="meta" id="last-refresh"></p>
+  </div>
+
+  <!-- Summary Stats -->
+  <div class="summary-bar" id="summary-bar" hidden>
+    <div class="summary-stat">
+      <span class="summary-stat-label">Repos Scanned</span>
+      <span class="summary-stat-value" id="sum-total">—</span>
+    </div>
+    <div class="summary-stat">
+      <span class="summary-stat-label">Hot (20+ signal)</span>
+      <span class="summary-stat-value positive" id="sum-hot">—</span>
+    </div>
+    <div class="summary-stat">
+      <span class="summary-stat-label">Avg 7d Growth</span>
+      <span class="summary-stat-value" id="sum-avg7d">—</span>
+    </div>
+    <div class="summary-stat">
+      <span class="summary-stat-label">Accelerating</span>
+      <span class="summary-stat-value positive" id="sum-accel">—</span>
+    </div>
+    <div class="summary-stat">
+      <span class="summary-stat-label">Top Sector</span>
+      <span class="summary-stat-value" id="sum-sector">—</span>
+    </div>
+  </div>
+
+  <!-- Quick Category Filters -->
+  <div class="quick-actions" id="category-filters">
+    <button class="quick-action-btn active" data-cat="all">All</button>
+    <button class="quick-action-btn" data-cat="ai">AI/ML</button>
+    <button class="quick-action-btn" data-cat="infra">Infra</button>
+    <button class="quick-action-btn" data-cat="dev-tools">Dev Tools</button>
+    <button class="quick-action-btn" data-cat="security">Security</button>
+    <button class="quick-action-btn" data-cat="data">Data</button>
+    <button class="quick-action-btn" data-cat="web">Web</button>
+    <button class="quick-action-btn" data-cat="fintech">Fintech</button>
+  </div>
+
+  <div class="filter-bar">
+    <div class="filter-group">
+      <label for="min-stars">Stars</label>
+      <input type="number" id="min-stars" value="0" min="0" placeholder="Min" />
+      <span class="filter-sep">&ndash;</span>
+      <input type="number" id="max-stars" value="" min="0" placeholder="No limit" aria-label="Max stars" />
+    </div>
+    <div class="filter-group">
+      <label for="min-7d">Min 7d growth</label>
+      <input type="number" id="min-7d" value="0" min="0" placeholder="0" />
+    </div>
+    <div class="filter-group">
+      <label for="sort-select">Sort by</label>
+      <select id="sort-select">
+        <option value="momentum" selected>Momentum Score</option>
+        <option value="seven_day_stars">7d Stars Gained</option>
+        <option value="acceleration">Acceleration</option>
+        <option value="growth_rate">7d Growth Rate</option>
+        <option value="current_stars">Total Stars</option>
+      </select>
+    </div>
+    <button id="apply-filters" type="button">Scan</button>
+  </div>
+
+  <div id="table-error" class="error-box" hidden></div>
+
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th class="rank-col">#</th>
+          <th style="width:28px"></th>
+          <th data-key="repo" style="text-align:left">Repository <span class="sort-arrow"></span></th>
+          <th class="num" data-key="current_stars">Stars <span class="sort-arrow"></span></th>
+          <th class="num group-sep" data-key="seven_day_stars">7d <span class="sort-arrow"></span></th>
+          <th class="num group-sep" data-key="growth_rate">7d % <span class="sort-arrow"></span></th>
+          <th class="num group-sep" data-key="one_month_stars">1m <span class="sort-arrow"></span></th>
+          <th class="num group-sep" data-key="acceleration">Accel <span class="sort-arrow"></span></th>
+          <th class="num group-sep" data-key="momentum">Signal <span class="sort-arrow"></span></th>
+        </tr>
+      </thead>
+      <tbody id="growth-body">
+        <tr><td class="msg-cell" colspan="9">Loading&hellip;</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="pager" id="pager" hidden>
+    <button id="prev-page" type="button">&larr; Prev</button>
+    <span id="page-info"></span>
+    <button id="next-page" type="button">Next &rarr;</button>
+  </div>
+
+  <script>
+    type GrowthMetricRow = {
+      repo_owner: string;
+      repo_name: string;
+      repo_url: string;
+      current_stars: number;
+      current_forks: number;
+      one_day_stars: number;
+      seven_day_stars: number;
+      one_month_stars: number;
+      three_month_stars: number;
+      one_day_forks: number;
+      seven_day_forks: number;
+      one_month_forks: number;
+      three_month_forks: number;
+    };
+
+    type ScoredRow = GrowthMetricRow & {
+      momentum: number;
+      growth_rate: number;
+      acceleration: number;
+      category: string;
+    };
+
+    const growthBody = document.querySelector<HTMLTableSectionElement>('#growth-body')!;
+    const tableError = document.querySelector<HTMLDivElement>('#table-error')!;
+    const lastRefresh = document.querySelector<HTMLSpanElement>('#last-refresh')!;
+    const allTh = document.querySelectorAll<HTMLTableCellElement>('thead th[data-key]');
+    const pager = document.querySelector<HTMLDivElement>('#pager')!;
+    const prevBtn = document.querySelector<HTMLButtonElement>('#prev-page')!;
+    const nextBtn = document.querySelector<HTMLButtonElement>('#next-page')!;
+    const pageInfoEl = document.querySelector<HTMLSpanElement>('#page-info')!;
+    const summaryBar = document.getElementById('summary-bar')!;
+    const sortSelect = document.querySelector<HTMLSelectElement>('#sort-select')!;
+
+    const minStarsInput = document.querySelector<HTMLInputElement>('#min-stars')!;
+    const maxStarsInput = document.querySelector<HTMLInputElement>('#max-stars')!;
+    const min7dInput = document.querySelector<HTMLInputElement>('#min-7d')!;
+    const applyBtn = document.querySelector<HTMLButtonElement>('#apply-filters')!;
+
+    const fmt = new Intl.NumberFormat('en-US');
+    const PAGE_SIZE = 50;
+    const COL_SPAN = 9;
+
+    let sortKey = 'momentum';
+    let sortAsc = false;
+    let currentPage = 0;
+    let rawData: GrowthMetricRow[] = [];
+    let allData: ScoredRow[] = [];
+    let filteredData: ScoredRow[] = [];
+    let activeCat = 'all';
+
+    // ── Watchlist helpers ──
+    function getWatchlist(): string[] {
+      try {
+        return JSON.parse(localStorage.getItem('repo_watchlist') || '[]');
+      } catch { return []; }
+    }
+
+    function toggleWatch(repoKey: string) {
+      const wl = getWatchlist();
+      const idx = wl.indexOf(repoKey);
+      if (idx >= 0) wl.splice(idx, 1);
+      else wl.push(repoKey);
+      localStorage.setItem('repo_watchlist', JSON.stringify(wl));
+    }
+
+    function isWatched(repoKey: string): boolean {
+      return getWatchlist().includes(repoKey);
+    }
+
+    // ── Category detection from repo name + description ──
+    const CAT_RULES: { cat: string; keywords: RegExp }[] = [
+      { cat: 'ai', keywords: /\b(ai|llm|gpt|openai|anthropic|langchain|rag|vector|embedding|transformer|neural|machine.?learn|deep.?learn|diffusion|stable|agent|copilot|chatbot|nlp|prompt|fine.?tun)\b/i },
+      { cat: 'infra', keywords: /\b(kubernetes|k8s|docker|terraform|ansible|aws|gcp|azure|cloud|devops|ci.?cd|deploy|orchestrat|container|serverless|helm|pulumi|iac)\b/i },
+      { cat: 'dev-tools', keywords: /\b(cli|editor|ide|vim|neovim|vscode|terminal|debug|lint|format|test|build|bundle|compiler|monorepo|dx|sdk|framework|library)\b/i },
+      { cat: 'security', keywords: /\b(secur|cve|vuln|pentest|auth|oauth|encrypt|firewall|waf|siem|zero.?trust|identity|credential|rbac|sso)\b/i },
+      { cat: 'data', keywords: /\b(database|sql|postgres|mysql|redis|mongo|elastic|kafka|spark|flink|etl|pipeline|warehouse|analytics|dbt|olap|oltp|time.?series|graph.?db)\b/i },
+      { cat: 'web', keywords: /\b(react|vue|svelte|angular|next\.?js|nuxt|remix|astro|tailwind|css|frontend|ui.?kit|component|dashboard|web.?app)\b/i },
+      { cat: 'fintech', keywords: /\b(payment|stripe|blockchain|crypto|defi|token|wallet|fintech|banking|trading|exchange|ledger)\b/i },
+    ];
+
+    function detectCategory(owner: string, name: string): string {
+      const text = `${owner} ${name}`;
+      for (const rule of CAT_RULES) {
+        if (rule.keywords.test(text)) return rule.cat;
+      }
+      return 'other';
+    }
+
+    // ── Scoring — Open-Source Freemium Deal Flow Model ──
+    function computeMomentum(r: GrowthMetricRow): number {
+      // Step 1: Engagement base  E_t = S_t + 3×F_t  (forks weighted 3x)
+      const E_total = r.current_stars + (3 * r.current_forks);
+      const E_1  = Math.max(0, r.one_day_stars      + (3 * r.one_day_forks));
+      const E_7  = Math.max(0, r.seven_day_stars    + (3 * r.seven_day_forks));
+      const E_30 = Math.max(0, r.one_month_stars    + (3 * r.one_month_forks));
+      const E_90 = Math.max(0, r.three_month_stars  + (3 * r.three_month_forks));
+
+      // Step 2: Core Momentum — ratio-based to measure growth rate
+      const M_base = (0.75 * E_7 / (E_total + 1)) + (0.25 * E_30 / (E_total + 1));
+
+      // Step 3: Target Zone — hard cut <1k, sweet spot 1k-10k, R² penalty >10k
+      const S = r.current_stars;
+      let R: number;
+      if (S < 1000) R = 0;
+      else if (S <= 10000) R = 1.0;
+      else R = (10000 / S) * (10000 / S);
+
+      // Step 4: Quality & Steadiness Filters
+      const H_1  = 1 - (0.4 * E_1 / (E_7 + 1));                       // Hype penalty
+
+      const weeklyRatio = E_7 / (E_30 + 1);                            // 7d steadiness
+      const Q_s = weeklyRatio >= 0.25                                   //  ≥0.25 = surging → reward up to 1.5×
+        ? Math.min(1.5, 1 + (weeklyRatio - 0.25))                      //  <0.25 = slowing → penalize proportionally
+        : weeklyRatio / 0.25;
+
+      const monthlyRatio = E_30 / (E_90 + 1);                          // 30d consistency
+      const C_90 = monthlyRatio >= 0.33                                 //  ≥0.33 = accelerating → reward up to 1.5×
+        ? Math.min(1.5, 1 + (monthlyRatio - 0.33))                     //  <0.33 = slowing → penalize proportionally
+        : monthlyRatio / 0.33;
+
+      // Step 5: Final Signal × 10,000
+      return Math.max(0, M_base * R * H_1 * Q_s * C_90 * 10000);
+    }
+
+    function computeAcceleration(r: GrowthMetricRow): number {
+      const weeklyFrom1m = r.one_month_stars > 0 ? r.one_month_stars / 4.3 : 0;
+      return weeklyFrom1m > 0 ? ((r.seven_day_stars / weeklyFrom1m) - 1) * 100 : 0;
+    }
+
+    function delta(v: number): string {
+      return v > 0 ? `+${fmt.format(v)}` : fmt.format(v);
+    }
+
+    function cls(v: number): string {
+      if (v > 0) return 'positive';
+      if (v < 0) return 'negative';
+      return 'neutral';
+    }
+
+    function heatCls(v: number, max: number): string {
+      if (max <= 0 || v <= 0) return 'neutral';
+      const ratio = v / max;
+      if (ratio > 0.7) return 'heat-5';
+      if (ratio > 0.4) return 'heat-4';
+      if (ratio > 0.2) return 'heat-3';
+      if (ratio > 0.08) return 'heat-2';
+      return 'heat-1';
+    }
+
+    function momentumCls(v: number): string {
+      if (v >= 20) return 'momentum-hot';
+      if (v >= 5) return 'momentum-warm';
+      if (v > 0) return 'momentum-mild';
+      return 'neutral';
+    }
+
+    function tdEl(text: string, className = ''): HTMLTableCellElement {
+      const el = document.createElement('td');
+      el.textContent = text;
+      if (className) el.className = className;
+      return el;
+    }
+
+    function showMsg(msg: string) {
+      growthBody.innerHTML = '';
+      pager.hidden = true;
+      const row = document.createElement('tr');
+      const cell = document.createElement('td');
+      cell.colSpan = COL_SPAN;
+      cell.className = 'msg-cell';
+      cell.textContent = msg;
+      row.appendChild(cell);
+      growthBody.appendChild(row);
+    }
+
+    function updateSortArrows() {
+      allTh.forEach(th => {
+        const arrow = th.querySelector('.sort-arrow')!;
+        const k = th.dataset.key;
+        if (k === sortKey) {
+          th.classList.add('sorted');
+          arrow.textContent = sortAsc ? '\u25B2' : '\u25BC';
+        } else {
+          th.classList.remove('sorted');
+          arrow.textContent = '';
+        }
+      });
+    }
+
+    function sortData() {
+      const key = sortKey as keyof ScoredRow;
+      filteredData.sort((a, b) => {
+        let va: any = a[key];
+        let vb: any = b[key];
+        if (key === 'repo' as any) {
+          va = `${a.repo_owner}/${a.repo_name}`.toLowerCase();
+          vb = `${b.repo_owner}/${b.repo_name}`.toLowerCase();
+        }
+        if (va < vb) return sortAsc ? -1 : 1;
+        if (va > vb) return sortAsc ? 1 : -1;
+        return 0;
+      });
+    }
+
+    function applyCategory() {
+      if (activeCat === 'all') {
+        filteredData = [...allData];
+      } else {
+        filteredData = allData.filter(r => r.category === activeCat);
+      }
+      sortData();
+      currentPage = 0;
+      renderPage();
+      updateSummary();
+    }
+
+    function updateSummary() {
+      const data = filteredData;
+      summaryBar.hidden = false;
+      document.getElementById('sum-total')!.textContent = fmt.format(data.length);
+      document.getElementById('sum-hot')!.textContent = fmt.format(data.filter(d => d.momentum >= 20).length);
+
+      const avg7d = data.length > 0
+        ? data.reduce((s, d) => s + d.seven_day_stars, 0) / data.length
+        : 0;
+      document.getElementById('sum-avg7d')!.textContent = `+${avg7d.toFixed(0)}`;
+
+      const accelCount = data.filter(d => d.acceleration > 20).length;
+      document.getElementById('sum-accel')!.textContent = fmt.format(accelCount);
+
+      // Top sector
+      const catCounts: Record<string, number> = {};
+      for (const d of data) {
+        catCounts[d.category] = (catCounts[d.category] || 0) + 1;
+      }
+      const topCat = Object.entries(catCounts).sort((a, b) => b[1] - a[1])[0];
+      const catLabels: Record<string, string> = {
+        ai: 'AI/ML', infra: 'Infra', 'dev-tools': 'Dev Tools',
+        security: 'Security', data: 'Data', web: 'Web',
+        fintech: 'Fintech', other: 'Other'
+      };
+      document.getElementById('sum-sector')!.textContent = topCat ? catLabels[topCat[0]] || topCat[0] : '—';
+    }
+
+    function renderPage() {
+      growthBody.innerHTML = '';
+      const start = currentPage * PAGE_SIZE;
+      const slice = filteredData.slice(start, start + PAGE_SIZE);
+      const watchlist = getWatchlist();
+
+      // Compute heat max from visible data
+      const max7d = Math.max(...filteredData.map(d => d.seven_day_stars), 1);
+
+      for (let i = 0; i < slice.length; i++) {
+        const m = slice[i];
+        const repoKey = `${m.repo_owner}/${m.repo_name}`;
+        const row = document.createElement('tr');
+
+        // Rank
+        const rankTd = document.createElement('td');
+        rankTd.className = 'rank-cell';
+        rankTd.textContent = String(start + i + 1);
+        row.appendChild(rankTd);
+
+        // Watchlist button
+        const watchTd = document.createElement('td');
+        const watchBtn = document.createElement('button');
+        watchBtn.className = `watchlist-btn ${watchlist.includes(repoKey) ? 'watched' : ''}`;
+        watchBtn.textContent = watchlist.includes(repoKey) ? '\u2605' : '\u2606';
+        watchBtn.title = 'Add to watchlist';
+        watchBtn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          toggleWatch(repoKey);
+          watchBtn.classList.toggle('watched');
+          watchBtn.textContent = isWatched(repoKey) ? '\u2605' : '\u2606';
+        });
+        watchTd.appendChild(watchBtn);
+        row.appendChild(watchTd);
+
+        // Repo name + category tag
+        const repoTd = document.createElement('td');
+        repoTd.style.textAlign = 'left';
+        const a = document.createElement('a');
+        a.href = `/repo?owner=${encodeURIComponent(m.repo_owner)}&name=${encodeURIComponent(m.repo_name)}`;
+        a.textContent = repoKey;
+        repoTd.appendChild(a);
+
+        // Category tag
+        if (m.category !== 'other') {
+          const catSpan = document.createElement('span');
+          catSpan.className = `category-tag cat-${m.category}`;
+          const shortLabels: Record<string, string> = {
+            ai: 'AI', infra: 'INFRA', 'dev-tools': 'TOOLS',
+            security: 'SEC', data: 'DATA', web: 'WEB', fintech: 'FIN'
+          };
+          catSpan.textContent = shortLabels[m.category] || m.category;
+          repoTd.appendChild(catSpan);
+        }
+
+        row.appendChild(repoTd);
+
+        // Stars
+        row.appendChild(tdEl(fmt.format(m.current_stars), 'num'));
+
+        // 7d with heat
+        const d7Td = tdEl(delta(m.seven_day_stars), `num group-sep ${heatCls(m.seven_day_stars, max7d)}`);
+        row.appendChild(d7Td);
+
+        // 7d growth rate %
+        const rateTd = tdEl(
+          m.growth_rate >= 999.9 ? 'NEW' : m.growth_rate.toFixed(1) + '%',
+          `num group-sep ${m.growth_rate > 2 ? 'positive' : m.growth_rate > 0 ? 'heat-1' : 'neutral'}`
+        );
+        row.appendChild(rateTd);
+
+        // 1m
+        row.appendChild(tdEl(delta(m.one_month_stars), `num group-sep ${cls(m.one_month_stars)}`));
+
+        // Acceleration
+        const accelTd = document.createElement('td');
+        accelTd.className = `num group-sep`;
+        if (m.acceleration > 20) {
+          accelTd.textContent = '\u25B2\u25B2 ' + m.acceleration.toFixed(0) + '%';
+          accelTd.style.color = '#f85149';
+        } else if (m.acceleration > 0) {
+          accelTd.textContent = '\u25B2 ' + m.acceleration.toFixed(0) + '%';
+          accelTd.style.color = '#3fb950';
+        } else if (m.acceleration > -20) {
+          accelTd.textContent = '\u2014 ' + m.acceleration.toFixed(0) + '%';
+          accelTd.style.color = '#8b949e';
+        } else {
+          accelTd.textContent = '\u25BC ' + m.acceleration.toFixed(0) + '%';
+          accelTd.style.color = '#f85149';
+        }
+        row.appendChild(accelTd);
+
+        // Momentum pill
+        const mTd = document.createElement('td');
+        mTd.className = `num group-sep`;
+        const pill = document.createElement('span');
+        pill.className = `momentum-pill ${momentumCls(m.momentum)}`;
+        pill.textContent = m.momentum >= 10 ? Math.round(m.momentum).toLocaleString() : m.momentum.toFixed(1);
+        mTd.appendChild(pill);
+        row.appendChild(mTd);
+
+        growthBody.appendChild(row);
+      }
+
+      updatePager();
+      updateSortArrows();
+    }
+
+    function updatePager() {
+      if (filteredData.length <= PAGE_SIZE) {
+        pager.hidden = true;
+        return;
+      }
+      pager.hidden = false;
+      const totalPages = Math.ceil(filteredData.length / PAGE_SIZE);
+      const from = currentPage * PAGE_SIZE + 1;
+      const to = Math.min((currentPage + 1) * PAGE_SIZE, filteredData.length);
+      pageInfoEl.textContent = `${fmt.format(from)}\u2013${fmt.format(to)} of ${fmt.format(filteredData.length)}`;
+      prevBtn.disabled = currentPage === 0;
+      nextBtn.disabled = currentPage >= totalPages - 1;
+    }
+
+    function applyFiltersAndScore() {
+      const minStars = parseInt(minStarsInput.value) || 0;
+      const maxStarsVal = maxStarsInput.value.trim();
+      const maxStars = maxStarsVal ? parseInt(maxStarsVal) : 0; // 0 = no limit
+      const min7d = parseInt(min7dInput.value) || 0;
+
+      // Filter raw data
+      let filtered = rawData;
+      if (minStars > 0) {
+        filtered = filtered.filter(r => r.current_stars >= minStars);
+      }
+      if (maxStars > 0) {
+        filtered = filtered.filter(r => r.current_stars <= maxStars);
+      }
+      if (min7d > 0) {
+        filtered = filtered.filter(r => r.seven_day_stars >= min7d);
+      }
+
+      // Compute scores
+      allData = filtered.map(r => {
+        const growthRate = r.current_stars > 0 ? (r.seven_day_stars / r.current_stars) * 100 : 0;
+        return {
+          ...r,
+          momentum: computeMomentum(r),
+          growth_rate: growthRate >= 999.9 ? 999.9 : growthRate,
+          acceleration: computeAcceleration(r),
+          category: detectCategory(r.repo_owner, r.repo_name),
+        };
+      });
+
+      sortKey = sortSelect.value;
+      sortAsc = false;
+      currentPage = 0;
+      applyCategory();
+
+      if (allData.length === 0) {
+        showMsg('No rising repos found with these filters. Try widening the star range or lowering the growth threshold.');
+        return;
+      }
+
+      lastRefresh.textContent = `${fmt.format(allData.length)} repos scanned \u2022 sorted by ${sortSelect.options[sortSelect.selectedIndex].text}`;
+    }
+
+    async function fetchData() {
+      showMsg('Scanning repos\u2026');
+
+      try {
+        const resp = await fetch('/data/repos.json');
+        if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+        const json = await resp.json();
+
+        // Map abbreviated keys to full names
+        rawData = json.repos.map((r: any) => ({
+          repo_owner: r.o,
+          repo_name: r.n,
+          repo_url: r.u,
+          current_stars: r.s,
+          current_forks: r.f,
+          one_day_stars: r.d1s,
+          seven_day_stars: r.d7s,
+          one_month_stars: r.d1ms,
+          three_month_stars: r.d3ms,
+          one_day_forks: r.d1f || 0,
+          seven_day_forks: r.d7f || 0,
+          one_month_forks: r.d1mf || 0,
+          three_month_forks: r.d3mf || 0,
+        }));
+
+        applyFiltersAndScore();
+      } catch (err: any) {
+        tableError.hidden = false;
+        tableError.textContent = `Failed to load data: ${err.message}. Run "npm run export-data" to generate the data file.`;
+        showMsg('Error loading data.');
+      }
+    }
+
+    // ── Event handlers ──
+
+    // Sort column clicks
+    allTh.forEach(th => {
+      th.addEventListener('click', () => {
+        const key = th.dataset.key;
+        if (!key) return;
+        if (key === sortKey) {
+          sortAsc = !sortAsc;
+        } else {
+          sortKey = key;
+          sortAsc = key === 'repo' ? true : false;
+        }
+        currentPage = 0;
+        sortData();
+        renderPage();
+        sortSelect.value = sortKey;
+      });
+    });
+
+    // Sort dropdown
+    sortSelect.addEventListener('change', () => {
+      sortKey = sortSelect.value;
+      sortAsc = false;
+      currentPage = 0;
+      sortData();
+      renderPage();
+    });
+
+    // Category filter buttons
+    document.getElementById('category-filters')!.addEventListener('click', (e) => {
+      const btn = (e.target as HTMLElement).closest('.quick-action-btn') as HTMLElement;
+      if (!btn) return;
+      document.querySelectorAll('.quick-action-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      activeCat = btn.dataset.cat || 'all';
+      applyCategory();
+    });
+
+    applyBtn.addEventListener('click', () => {
+      currentPage = 0;
+      applyFiltersAndScore();
+    });
+
+    [minStarsInput, maxStarsInput, min7dInput].forEach(input => {
+      input.addEventListener('keydown', (e: KeyboardEvent) => {
+        if (e.key === 'Enter') {
+          currentPage = 0;
+          applyFiltersAndScore();
+        }
+      });
+    });
+
+    prevBtn.addEventListener('click', () => {
+      if (currentPage > 0) { currentPage--; renderPage(); }
+    });
+
+    nextBtn.addEventListener('click', () => {
+      if ((currentPage + 1) * PAGE_SIZE < filteredData.length) {
+        currentPage++;
+        renderPage();
+      }
+    });
+
+    // ── Init ──
+    fetchData();
+  </script>
+
+</Base>

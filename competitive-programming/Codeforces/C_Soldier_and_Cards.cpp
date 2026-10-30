@@ -1,0 +1,70 @@
+#include "bits/stdc++.h"
+using namespace std;
+#define int long long
+#define double long double
+
+int32_t main() {
+    int n;
+    cin >> n;
+    int factorial = n;
+    for(int i = 1; i < n; i++){
+        factorial *= i;
+    }
+    int k1;
+    cin >> k1;
+    queue<int> q1;
+    for (int i = 0; i < k1; i++) {
+        int a;
+        cin >> a;
+        q1.push(a);
+    }
+    int k2;
+    cin >> k2;
+    queue<int> q2;
+    for (int i = 0; i < k2; i++) {
+        int a;
+        cin >> a;
+        q2.push(a);
+    }
+
+    /*
+    // case when it will not even run
+    if(q1.size() == 1 && q2.size() > 1 && q1.front() > q2.front()){
+        cout << -1 << "\n";
+        return 0;
+    }
+    else if(q2.size() == 1 && q1.size() > 1 && q1.front() < q2.front()){
+        cout << -1 << "\n";
+        return 0;
+    }
+    */
+
+    // case when it will actually result in something
+    int count = 0;
+    while (true) {
+        int element1 = q1.front();
+        int element2 = q2.front();
+        q1.pop();
+        q2.pop();
+        if (element1 > element2) {
+            q1.push(element2);
+            q1.push(element1);
+        } else {
+            q2.push(element1);
+            q2.push(element2);
+        }
+        count += 1;
+        // cout << "count " << count << "\n";
+        if (count > factorial) {
+            cout << -1 << "\n";
+            return 0;
+        }
+        if (q1.empty()) {
+            cout << count << " " << 2 << "\n";
+            break;
+        } else if (q2.empty()) {
+            cout << count << " " << 1 << "\n";
+            break;
+        }
+    }
+}

@@ -1,0 +1,300 @@
+---
+import Base from "../../layouts/Base.astro";
+import Masthead from "../../components/Masthead.astro";
+import Foot from "../../components/Foot.astro";
+import course from "../../../public/data/math115.json" with { type: "json" };
+
+interface Assignment {
+  due: string;
+  items: string[];
+  file?: string;
+}
+
+const semesters = course.semesters as {
+  term: string;
+  page: string;
+  note: string;
+  assignments: Assignment[];
+  handouts: { title: string; file: string }[];
+  exams: { title: string; file: string }[];
+}[];
+
+const assignmentCount = semesters.reduce((n, s) => n + s.assignments.length, 0);
+const slug = (term: string) => term.toLowerCase().replace(/\s+/g, "-");
+---
+
+<Base
+  title="Berkeley Math 115 — problem sets and exams"
+  description="Surviving problem sets and exams from four semesters of UC Berkeley Math 115, Introduction to Number Theory, taught by Kenneth Ribet."
+>
+  <Masthead
+    kicker="Math 115 Introduction to Number Theory"
+    stats={[
+      `${semesters.length} semesters`,
+      `${assignmentCount} assignments`,
+      course.textbookShort,
+      course.instructor,
+    ]}
+  />
+
+  <div class="shell">
+    <aside class="rail">
+      <div class="rail-group">
+        <div class="rail-title">Semesters</div>
+        <ol class="set-list">
+          {semesters.map((s) => (
+            <li>
+              <a href={`#${slug(s.term)}`}>
+                {s.term}
+                <span>{s.assignments.length ? `${s.assignments.length} sets` : "exams only"}</span>
+              </a>
+            </li>
+          ))}
+        </ol>
+      </div>
+    </aside>
+
+    <main class="stream">
+      <div class="stream-status">
+        <span>{course.institution} · {course.license}</span>
+        <a href={course.source}>Original course page</a>
+      </div>
+
+      <p class="course-note">
+        Assignments are keyed to the required textbook: {course.textbook} {course.note}
+      </p>
+
+      <p class="course-note fine">{course.licenseNote}</p>
+
+      {semesters.map((s) => (
+        <section class="pset" id={slug(s.term)}>
+          <div class="pset-margin">
+            <span class="pset-number">{s.term.replace(/^\w+\s/, "")}</span>
+            <span class="pset-term">{s.term.replace(/\s\d+$/, "")}</span>
+          </div>
+          <div class="pset-body">
+            <h2>
+              {s.term}
+              <a class="pset-source" href={s.page}>Berkeley</a>
+            </h2>
+
+            {s.note && <p class="sem-note">{s.note}</p>}
+
+            {s.assignments.length > 0 && (
+              <div class="section">
+                <h3>Assignments</h3>
+                <ol class="hw">
+                  {s.assignments.map((a) => (
+                    <li>
+                      <div class="hw-head">
+                        <span class="hw-due">{a.due}</span>
+                        {a.file && <a class="pdf" href={a.file}>PDF</a>}
+                      </div>
+                      {a.items.length > 0 && (
+                        <ul class="hw-items">{a.items.map((it) => <li>{it}</li>)}</ul>
+                      )}
+                    </li>
+                  ))}
+                </ol>
+              </div>
+            )}
+
+            {s.handouts.length > 0 && (
+              <div class="section">
+                <h3>Handouts</h3>
+                <ul class="flat">
+                  {s.handouts.map((h) => <li><a href={h.file}>{h.title} (PDF)</a></li>)}
+                </ul>
+              </div>
+            )}
+
+            {s.exams.length > 0 && (
+              <div class="section">
+                <h3>Exams — questions with skeletal solutions</h3>
+                <ul class="flat">
+                  {s.exams.map((e) => <li><a href={e.file}>{e.title} (PDF)</a></li>)}
+                </ul>
+              </div>
+            )}
+          </div>
+        </section>
+      ))}
+
+      <p class="course-note fine">{course.empty}</p>
+    </main>
+  </div>
+
+  <Foot />
+</Base>
+
+<style>
+  .set-list {
+    list-style: none;
+    margin: 0.7rem 0 0;
+    padding: 0;
+    font-family: var(--font-mono);
+    font-size: 0.72rem;
+  }
+
+  .set-list a {
+    display: flex;
+    justify-content: space-between;
+    gap: 0.6rem;
+    padding: 0.3rem 0;
+    color: var(--ink-mid);
+    text-decoration: none;
+    border-bottom: 1px solid var(--rule);
+  }
+
+  .set-list a:hover { color: var(--accent); }
+  .set-list span { letter-spacing: 0.06em; }
+
+  .course-note {
+    max-width: var(--measure);
+    margin: 1.6rem 0 0;
+    font-size: 0.95rem;
+    color: var(--ink-mid);
+    line-height: 1.6;
+  }
+
+  .fine { font-size: 0.85rem; }
+
+  .pset {
+    display: grid;
+    grid-template-columns: 96px minmax(0, 1fr);
+    gap: 2rem;
+    padding: 2.3rem 0;
+    border-bottom: 1px solid var(--rule);
+    scroll-margin-top: 1.5rem;
+  }
+
+  .pset-margin {
+    font-family: var(--font-mono);
+    font-size: 0.74rem;
+    color: var(--ink-mid);
+    text-align: right;
+    padding-top: 0.35rem;
+  }
+
+  .pset-number {
+    display: block;
+    font-family: var(--font-display);
+    font-size: 1.6rem;
+    font-weight: 600;
+    color: var(--ink);
+    line-height: 1;
+    margin-bottom: 0.3rem;
+  }
+
+  .pset-term { display: block; letter-spacing: 0.06em; }
+
+  .pset-body { min-width: 0; }
+
+  .pset-body h2 {
+    font-family: var(--font-display);
+    font-size: 1.25rem;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+    margin: 0 0 0.8rem;
+    display: flex;
+    align-items: baseline;
+    gap: 0.7rem;
+  }
+
+  .pset-source {
+    font-family: var(--font-mono);
+    font-size: 0.62rem;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--ink-mid);
+    border-bottom: 1px solid var(--rule-strong);
+  }
+
+  .pset-source:hover { color: var(--accent); border-color: var(--accent); }
+
+  .sem-note {
+    max-width: var(--measure);
+    margin: 0 0 1.2rem;
+    font-size: 0.9rem;
+    color: var(--ink-mid);
+    line-height: 1.6;
+  }
+
+  .section + .section { margin-top: 1.4rem; }
+
+  .section h3 {
+    font-family: var(--font-mono);
+    font-size: 0.64rem;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--nt);
+    margin: 0 0 0.6rem;
+  }
+
+  .hw {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    max-width: var(--measure);
+  }
+
+  .hw > li {
+    padding: 0.55rem 0;
+    border-top: 1px solid var(--rule);
+  }
+
+  .hw > li:first-child { border-top: 0; }
+
+  .hw-head {
+    display: flex;
+    align-items: baseline;
+    gap: 0.7rem;
+  }
+
+  .hw-due {
+    font-family: var(--font-mono);
+    font-size: 0.74rem;
+    letter-spacing: 0.04em;
+    color: var(--ink);
+  }
+
+  .pdf {
+    font-family: var(--font-mono);
+    font-size: 0.62rem;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--ink-mid);
+    border-bottom: 1px solid var(--rule-strong);
+  }
+
+  .pdf:hover { color: var(--accent); border-color: var(--accent); }
+
+  .hw-items {
+    margin: 0.35rem 0 0;
+    padding-left: 1.1rem;
+  }
+
+  .hw-items li {
+    font-size: 0.97rem;
+    line-height: 1.6;
+    margin-bottom: 0.25rem;
+  }
+
+  .flat {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    font-family: var(--font-mono);
+    font-size: 0.78rem;
+  }
+
+  .flat li { padding: 0.25rem 0; }
+  .flat a { color: var(--ink-mid); }
+  .flat a:hover { color: var(--accent); }
+
+  @media (max-width: 860px) {
+    .pset { grid-template-columns: 1fr; gap: 0.8rem; }
+    .pset-margin { text-align: left; display: flex; align-items: baseline; gap: 0.7rem; }
+    .pset-number { margin-bottom: 0; }
+  }
+</style>

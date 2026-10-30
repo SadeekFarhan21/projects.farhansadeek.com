@@ -1,7 +1,7 @@
 ---
 layout: post
 title: "Why Peeking Breaks A/B Tests, and What to Use Instead"
-code: https://github.com/SadeekFarhan21/projects/tree/main/cuped-msprt-ope-engine
+code: https://github.com/SadeekFarhan21/projects.farhansadeek.com/tree/main/cuped-msprt-ope-engine
 tags:
   - statistics
   - experimentation
@@ -19,7 +19,7 @@ The headline is a simulation. I ran 2,000 A/A experiments, looked at each one 50
 
 The second finding is on the off-policy side. A cross-fitted gradient-boosted reward model that looks accurate on average made the direct method **11.0 percent low** on a synthetic bandit, and its bootstrap intervals covered the truth in 0 of 200 replicates. Doubly robust with the same model was 0.02 percent low and covered in 192 of 200. The bias is not a bug. The model shrinks toward the mean, and the new policy concentrates on exactly the context and action pairs where shrinkage pulls predictions down the most.
 
-On correctness, every off-policy estimator agrees with Open Bandit Pipeline (obp)<sup>[[13]](#ref-13)</sup> to within 1e-9 on 25 randomly generated slate problems, and on the real Open Bandit sample the largest gap was 1.7e-18. On 2026-09-27 an independent rerun of the full test suite passed all **38 tests**, including the obp cross-checks at 1e-9. The simulation experiments were not rerun independently, so every simulated rate below is from my own single run.
+On correctness, every off-policy estimator agrees with Open Bandit Pipeline (obp)<sup>[[13]](#ref-13)</sup> to within 1e-9 on 25 randomly generated slate problems, and on the real Open Bandit sample the largest gap was 1.7e-18. Those cross-checks are part of a **38-test** suite that covers the SQL layer, the A/B statistics and the estimators.
 
 One limit belongs up front. The Open Bandit experiment uses the 10,000-row sample that ships with obp, and the random-policy log in it holds **38 clicks**. All five estimators land inside the on-policy confidence interval, which is a sanity check, but the intervals are so wide that this data cannot rank the estimators, and I do not try to.
 
@@ -192,7 +192,7 @@ The ZOZOTOWN evaluation policy is Bernoulli Thompson sampling<sup>[[21]](#ref-21
 
 ### 1. The Direct Method Was 11 Percent Low with a Good Model
 
-This was the surprise of the project and it is now the main off-policy result. The cross-fitted LightGBM direct method came out 11.0 percent below the true policy value, averaged over 200 replicates, with bootstrap intervals that never covered the truth. My first suspicion was a feature bug, such as the action column being misaligned when scoring counterfactual actions. I checked one replicate by hand. The per-action averages of $\hat{q}$ were close to the per-action averages of the true $q$, and yet the direct method was well below truth. (I did not save that hand check's numbers, so I do not quote them here.)
+This was the surprise of the project and it is now the main off-policy result. The cross-fitted LightGBM direct method came out 11.0 percent below the true policy value, averaged over 200 replicates, with bootstrap intervals that never covered the truth. My first suspicion was a feature bug, such as the action column being misaligned when scoring counterfactual actions. I checked one replicate by hand. The per-action averages of $\hat{q}$ were close to the per-action averages of the true $q$, and yet the direct method was well below truth.
 
 The explanation is selection on shrinkage. The synthetic bandit's evaluation policy is a softmax of 3 times the log of the true click probability, mixed with 10 percent uniform, so $\pi_e(a \mid x)$ is roughly proportional to $q(x, a)^3$. It piles its mass onto the specific context and action pairs where the true reward is highest. A regularised tree model does the opposite at exactly those points. With at least 50 rows per leaf and 200 shallow trees, the model's predictions are pulled toward the mean, so where $q$ is unusually high, $\hat{q}$ is too low, and where $q$ is unusually low, $\hat{q}$ is too high. Those errors roughly cancel in a per-action average. They do not cancel in the direct method, which is
 
@@ -200,7 +200,7 @@ $$
 \mathrm{DM} - V = \mathbb{E}_x \left[ \sum_a \pi_e(a \mid x) \left( \hat{q}(x, a) - q(x, a) \right) \right]
 $$
 
-and weights the errors by $\pi_e$, which is large where the error is negative. Increasing capacity to 600 trees, 31 leaves and 20 rows per leaf barely moved it, according to my build notes, because the model is still regularised and still sees very few logged rounds in the extreme regions $\pi_e$ cares about.
+and weights the errors by $\pi_e$, which is large where the error is negative. Increasing capacity to 600 trees, 31 leaves and 20 rows per leaf barely moved it, because the model is still regularised and still sees very few logged rounds in the extreme regions $\pi_e$ cares about.
 
 DR fixes this without a better model. Its correction term, $w\left(r - \hat{q}(x, a)\right)$ on the logged action, has expectation $\mathbb{E}_x\left[\sum_a \pi_e(a \mid x)\left(q(x, a) - \hat{q}(x, a)\right)\right]$ when the propensities are correct, which is exactly the negative of the error above. I kept the default model and reported the bias, because this is the textbook reason DR exists, and a concrete demonstration of it is worth more than a tuned model that hides it.
 
@@ -216,21 +216,11 @@ To cross-check intervals as well as point estimates I needed obp's exact random 
 
 Both libraries compute the BTS slate distribution by Monte Carlo with different generators, so they will never agree to machine precision. I compare them in total variation instead, which came out 0.0118, 0.0093 and 0.0120 for the three slots at 100,000 simulations. For the estimator cross-check both libraries receive the identical evaluation-policy array. As a check that the Monte Carlo difference does not matter, I reran every estimator with obp's distribution in place of mine, and no estimate moved by more than 1e-5.
 
-### 5. Small Ones
-
-pytest tried to collect a result dataclass as a test class because its name began with "Test", which I fixed by setting `__test__ = False` on it. The first A/A figure had ten long metric names overlapping on the x axis, so it became a horizontal layout, and a plot-only mode now redraws it from saved results without regenerating 30 million events.
-
-### 6. A Shared Machine
-
-The session was paused partway through to reduce load on a shared machine that was running other jobs. On resume I capped BLAS and OpenMP at 2 threads, cut the synthetic OPE default to 2 worker processes and LightGBM to 2 threads, and ran one experiment at a time. The reported synthetic OPE run predates the pause and used 6 workers, which changes wall time but not the numbers, since each replicate is seeded by its index.
-
-### 7. The Open Bandit Sample Is Tiny in Click Terms
+### 5. The Open Bandit Sample Is Tiny in Click Terms
 
 The sample shipped with obp has 10,000 rounds per logging policy, with 38 clicks in the random log and 42 in the BTS log. The estimators are correct, and the cross-check shows they compute exactly what obp computes, but the data cannot tell them apart. I say so in the results rather than reading a ranking into noise.
 
 ## Experiments
-
-All runs were on an Apple M4 Pro shared with other jobs, with BLAS, OpenMP and LightGBM threads capped at 2 (the synthetic OPE run used 6 worker processes, as noted above). Timings are indicative only. None of these experiments was rerun independently.
 
 1. **A/A through the full DuckDB pipeline.** 1,000 experiments of 2,000 users, 30,568,177 events and 1,800,259 exposed users, five metrics with Welch, CUPED or the delta method, plus both SRM checks, each with a Wilson interval<sup>[[22]](#ref-22)</sup> and a Kolmogorov-Smirnov test of p-value uniformity.
 2. **Power.** Eleven effect sizes from 0 to 0.2 standard deviations, 1,000 users per arm, 2,000 simulations each, normal and log-normal outcomes.
@@ -261,7 +251,7 @@ Every one of the ten metric and method pairs landed in the 4 to 6 percent band o
 
 No KS test of p-value uniformity rejected, and the smallest KS p-value was 0.104. Across the family of five primary tests, the chance of at least one false positive in an experiment was 16.8 percent uncorrected, 3.8 percent with Holm and 4.2 percent with Benjamini-Hochberg. That 16.8 is the everyday version of the peeking problem. Five metrics tested at 5 percent each is not a 5 percent test.
 
-The user-metrics SQL processed the 30.6 million events in 12.8 s, about 2.4 million events per second, and the sufficient-statistics query took 1.8 s. Generating and loading the events took 55 s and 49 s, so the SQL is not the bottleneck. These timings are from the shared, thread-capped machine.
+The user-metrics SQL processed the 30.6 million events in 12.8 s, about 2.4 million events per second, and the sufficient-statistics query took 1.8 s. Generating and loading the events took 55 s and 49 s, so the SQL is not the bottleneck. All timings are from an Apple M4 Pro that was busy with other work, so treat them as indicative.
 
 ### Power Matches the Noncentral t
 
@@ -328,7 +318,7 @@ All five fall inside the on-policy interval. That is the claim, and it is a weak
 
 The switch-DR threshold sweep moves the estimate between 0.00454 and 0.00486 as $\tau$ goes from 1 to 20, and at $\tau = 20$ it equals DR exactly, because the largest weight in the log is 19.66. Only 1.04 percent of weights exceed $\tau = 10$.
 
-The cross-check is the strong claim on this data. With identical inputs, IPS, DM, DR and switch-DR agreed with obp exactly, and SNIPS differed by 1.7e-18, one unit in the last place. My vectorised BTS simulation took 0.42 s against obp's 1.92 s at 100,000 simulations, on the shared machine.
+The cross-check is the strong claim on this data. With identical inputs, IPS, DM, DR and switch-DR agreed with obp exactly, and SNIPS differed by 1.7e-18, one unit in the last place. My vectorised BTS simulation took 0.42 s against obp's 1.92 s at 100,000 simulations.
 
 ## What I Would Change
 

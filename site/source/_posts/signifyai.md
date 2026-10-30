@@ -2,7 +2,7 @@
 layout: post
 title: "An ASL and Emotion Overlay for Any Video Call"
 tab_title: SignifyAI
-code: https://github.com/SadeekFarhan21/projects/tree/main/signifyai
+code: https://github.com/SadeekFarhan21/projects.farhansadeek.com/tree/main/signifyai
 date: 2025-02-22 10:35:49
 tags:
   - computer-vision
@@ -26,7 +26,7 @@ That led to two design choices that shape everything else. Capture is a screen g
 
 The scope was three recognizers. Two of them share a hand crop, with ASL finger-spelling classifying it into a letter and a hand-gesture model classifying the same crop into one of 10 gestures, while the third, an emotion model, classifies a face crop into one of the seven FER2013 labels.
 
-The three of us built it as one team and share equal credit on the paper. I wrote the research paper and made its confusion-matrix and loss-curve figures, along with an early FER2013 notebook whose data pipeline and training recipe the emotion script kept and, later, the dataset downloader. Jalen wrote the model training scripts and the README, and Jayson wrote the desktop app.
+The three of us built it as one team and share equal credit on the paper. I wrote the research paper and made its confusion-matrix and loss-curve figures, along with the early FER2013 work whose data pipeline and training recipe the emotion model kept. Jalen wrote the model training, and Jayson wrote the desktop app.
 
 ## Technical Details
 
@@ -44,7 +44,7 @@ The app is a set of threads around a Qt window. Two worker threads each grab a r
 
 <figure class="excal" data-diagram="signifyai-architecture"><a href="/img/diagrams/signifyai-architecture.webp" class="excal-link" aria-label="Open the diagram full size"><img src="/img/diagrams/signifyai-architecture.webp" alt="SignifyAI screen overlay: two threads grab a screen region with mss every 100 ms, the face thread runs an OpenCV DNN face detector and a 48 by 48 emotion CNN, the hand thread runs MediaPipe Hands, a 20 pixel crop, rembg and a 128 by 128 grayscale image into a 10-class gesture CNN and a 29-class ASL CNN, and a frameless, always-on-top, mouse-transparent Qt overlay shows the results." width="2400" height="2482" loading="lazy" decoding="async"></a></figure>
 
-The overlay is a frameless, always-on-top, mouse-transparent window, so clicks pass through it to the application underneath. A separate draggable toolbar toggles the face and hand threads and snaps to screen edges. There are three app variants. `main.py` does face and emotion only, `gesture.py` is the primary app with hand gestures, ASL and emotion, and `hands_no_gesture.py` is a debug variant.
+The overlay is a frameless, always-on-top, mouse-transparent window, so clicks pass through it to the application underneath. A separate draggable toolbar toggles the face and hand threads and snaps to screen edges. The main app runs hand gestures, ASL and emotion together, and a lighter version does face and emotion only.
 
 ### Where the Parameters Live
 
@@ -94,21 +94,9 @@ The face thread runs the Caffe SSD on a frame scaled by 0.5, keeps detections ab
 
 ### Training the Models
 
-Jalen's `facial_expression.py` trains the emotion network. It keeps the split logic, augmentation settings, Adam rate and early stopping from my early notebook, and replaces my architecture (Flatten and three Dense blocks) with Jalen's convolutional one. It uses the predefined FER2013 splits: 28,709 training images, 3,589 in `PublicTest` for validation and 3,589 in `PrivateTest` for the test. Training uses augmentation (rotation 10 degrees, shifts and zoom of 0.1, horizontal flip), Adam at 0.001, batch 64 for up to 100 epochs, early stopping with patience 10 on validation loss with the best weights restored, and a learning-rate reduction of 0.5 after 5 stalled epochs.
+The emotion network's training keeps the split logic, augmentation settings, Adam rate and early stopping from my early FER2013 model and replaces its architecture (Flatten and three Dense blocks) with Jalen's convolutional one. It uses the predefined FER2013 splits: 28,709 training images, 3,589 in `PublicTest` for validation and 3,589 in `PrivateTest` for the test. Training uses augmentation (rotation 10 degrees, shifts and zoom of 0.1, horizontal flip), Adam at 0.001, batch 64 for up to 100 epochs, early stopping with patience 10 on validation loss with the best weights restored, and a learning-rate reduction of 0.5 after 5 stalled epochs.
 
-The gesture script holds out 30% of the images for validation and 20% of the rest for test, so 56% train, 30% validation and 14% test, at batch 32. The ASL script splits the alphabet set 80/20 with `image_dataset_from_directory` and seed 123 and trains for 30 epochs at batch 32. Our original ASL run used 36 classes, digits 0 to 9 and letters A to Z. The current ASL code covers 29, A to Z plus `del`, `nothing` and `space`.
-
-### Datasets on One Command
-
-My later contribution was `data/dataset.py`, a 58-line script that uses `kagglehub` to download the three datasets and symlinks them into `data/`, so every training script reads from a fixed path.
-
-```python
-DATASETS = {
-    "asl_dataset":   {"handle": "grassknoted/asl-alphabet", ...},
-    "fer2013.csv":   {"handle": "deadskull7/fer2013", ...},
-    "leapGestRecog": {"handle": "gti-upm/leapgestrecog", ...},
-}
-```
+The gesture script holds out 30% of the images for validation and 20% of the rest for test, so 56% train, 30% validation and 14% test, at batch 32. The ASL script splits the alphabet set 80/20 with `image_dataset_from_directory` and seed 123 and trains for 30 epochs at batch 32. The ASL model was first trained on 36 classes, digits 0 to 9 and letters A to Z, and the final version covers 29, A to Z plus `del`, `nothing` and `space`.
 
 ## Problems
 
@@ -128,13 +116,6 @@ Each hand goes through `rembg` and two `predict` calls, and each face through th
 
 A layer that sits over a video call is useless if it blocks the call. **The window is frameless, always on top and mouse-transparent, so every click lands on the app underneath.** The controls live in a separate draggable toolbar that snaps to screen edges and turns the face and hand threads on and off.
 
-## Experiments
-
-For this write-up I did two things.
-
-1. I rebuilt the three layer stacks in TensorFlow 2.21 on Python 3.12 and counted parameters with `count_params()`, using `results/count_params.py`. The counts are in `results/param_counts.txt`.
-2. I recounted the ASL, gesture and emotion accuracies from the confusion-matrix images. I read the cell values by eye from `confusion_1.png`, `confusion_2.png` and `confusion_3.png`, summed the diagonals, and checked the row sums against the known test-set sizes. The gesture matrix has 280 samples in each of 10 classes, and the emotion matrix rows sum to 3,589, the size of the FER2013 `PrivateTest` split. The arithmetic is in `results/confusion_arithmetic.txt`.
-
 ## Results
 
 ### Parameter Counts
@@ -149,7 +130,7 @@ The gesture confusion matrix has 280 test samples in each of 10 classes, 2,800 i
 
 ### Emotion Accuracy
 
-The emotion matrix rows sum to 3,589. The diagonal is 307, 25, 215, 775, 337, 332 and 457, which sums to 2,448. **That is 68.21%, typical of a small CNN on FER2013.** On the training curve, training loss falls from about 2.1 to about 0.86 and validation loss from about 1.98 to about 0.92, stopping around epoch 62.
+The emotion matrix rows sum to 3,589, the size of the FER2013 `PrivateTest` split. The diagonal is 307, 25, 215, 775, 337, 332 and 457, which sums to 2,448. **That is 68.21%, typical of a small CNN on FER2013.** On the training curve, training loss falls from about 2.1 to about 0.86 and validation loss from about 1.98 to about 0.92, stopping around epoch 62.
 
 <figure data-figure="chart:projects/signifyai/signifyai-emotion-recall"></figure>
 
@@ -157,7 +138,7 @@ Happy is the best class, at 775 of 879. Fear is the worst of the large classes, 
 
 ### ASL Accuracy
 
-The ASL confusion matrix is from our original 36-class run, with roughly 7 to 20 samples per class. I hand-counted it the same way. The diagonal sums to 493 and the off-diagonal cells to about 10, out of about 503 samples, so **roughly 98.0%.** The errors are single counts apart from 0 predicted as O (2 times) and V predicted as 2 (2 times), plus single errors such as A and S, and T and U. **Those are the pairs that look alike in a still image.**
+The ASL confusion matrix is from our original 36-class run, with roughly 7 to 20 samples per class. The diagonal sums to 493 and the off-diagonal cells to about 10, out of about 503 samples, so **roughly 98.0%.** The errors are single counts apart from 0 predicted as O (2 times) and V predicted as 2 (2 times), plus single errors such as A and S, and T and U. **Those are the pairs that look alike in a still image.**
 
 ## What I Would Change
 

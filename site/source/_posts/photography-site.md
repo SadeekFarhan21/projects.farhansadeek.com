@@ -2,7 +2,7 @@
 layout: post
 title: "Timestamps and Hashes Did Most of My Photo Culling"
 tab_title: Photo Culling
-code: https://github.com/SadeekFarhan21/projects/tree/main/photography-site
+code: https://github.com/SadeekFarhan21/projects.farhansadeek.com/tree/main/photography-site
 date: 2024-11-18 11:33:22
 tags:
   - photography
@@ -77,8 +77,6 @@ The site holds 52 full-size images (32,588 KB) and 52 thumbnails (6,964 KB). Ver
 
 ### The Curation Pipeline
 
-The curation scripts live in a private repository, so I describe them here rather than quote them.
-
 `curate.py` is the first pass. It computes the variance of the Laplacian for each image, clusters bursts by perceptual hash and keeps the sharpest of each, then writes contact sheets and a `report.csv`. `score_photos.py` sends each image, downscaled to a 768 px JPEG, to an OpenAI-compatible endpoint at temperature 0.2 and expects JSON back with a `score` from 0 to 100 and a `reason`. It appends to `scores.csv` as it goes, so a killed run picks up where it stopped.
 
 My first plan, `run_pipeline.sh`, ran two local passes with Ollama: qwen2.5vl:3b<sup>[[8]](#ref-8)</sup> over everything with a minimum score of 15, then the 7B model over the survivors, keeping the top 300. `curate_month.py` replaced it. It scores one month at a time with gpt-4o-mini<sup>[[9]](#ref-9)</sup>, 10 images per request across 5 workers, keeps images scoring 70 or more, and clusters shooting sessions with the 30 second gap and the Hamming distance of 6, keeping the best-scoring frame in each cluster.
@@ -95,9 +93,9 @@ The prompt asks for a harsh scale for a city and landscape travel portfolio. Peo
 
 ### My Changes to the exif-photo-blog Fork
 
-The fork is Sam Becker's work<sup>[[3]](#ref-3)</sup>, with a long upstream history. On top of it I added:
+The fork is Sam Becker's work<sup>[[3]](#ref-3)</sup>. On top of it I added:
 
-- **Location collections**, with `/location/[location]` pages and an admin CRUD for locations. That change touched 55 files (+1,484/−35) and also added platform files such as `dji.ts`, `samsung.ts` and `sony.ts`.
+- **Location collections**, with `/location/[location]` pages and an admin CRUD for locations, along with platform files such as `dji.ts`, `samsung.ts` and `sony.ts`.
 - **Camera label normalisation**, category sorting by count, and a three-column photo grid.
 - **A migration from Vercel Blob to Cloudflare R2**, along with `generate-r2-ai-metadata.mjs` and `sync-r2-exif-metadata.mjs`. The migration script runs dry by default. With `--execute` it copies every object, including the optimised variants, under the same key, rewrites the URL in Postgres, and can resume after an interruption.
 
@@ -125,11 +123,11 @@ The histogram above is the clearest result. The 3B model scored all 2,419 photos
 
 <figure data-figure="chart:projects/photography-site/photography-site-curation-funnel"></figure>
 
-The library manifest lists 2,952 images, 2,750 camera originals and 202 other files. Across the months in the logged run, the cloud pipeline **scored 1,803 images and kept 217 at threshold 70, with 0 scoring errors**. The final upload run pushed 157 of the 160 photos it planned to the site, and `_uploaded.json` holds 180 rows once earlier uploads are counted.
+The library manifest lists 2,952 images, 2,750 camera originals and 202 other files. Across the months it covered, the cloud pipeline **scored 1,803 images and kept 217 at threshold 70, with 0 scoring errors**. The uploader pushed 157 of the 160 photos it planned to the site, which holds 180 uploaded photos once earlier uploads are counted.
 
 ### Time and Hashes Did More Than Aesthetics
 
-Clustering had a bigger effect than scoring. In the largest logged month, 2025-07, **330 of 488 images were excluded as near-duplicates** before the threshold decided anything. That's 68 percent of the month removed by capture time and perceptual hash alone. **It's a cheaper and more reliable signal than asking a model whether a photo is beautiful.**
+Clustering had a bigger effect than scoring. In the largest month, 2025-07, **330 of 488 images were excluded as near-duplicates** before the threshold decided anything. That's 68 percent of the month removed by capture time and perceptual hash alone. **It's a cheaper and more reliable signal than asking a model whether a photo is beautiful.**
 
 ## What I Would Change
 

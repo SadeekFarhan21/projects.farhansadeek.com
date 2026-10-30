@@ -1,0 +1,293 @@
+---
+import Base from '../layouts/Base.astro';
+---
+
+<Base title="Watchlist — Tracked Repos" description="Your personal watchlist of repos to track for investment signals." active="watchlist">
+  <div class="page-header">
+    <h1>Your Watchlist</h1>
+    <p class="subtitle">Repos you're tracking for investment signals. Data updates as new snapshots are collected.</p>
+    <p class="meta" id="last-refresh"></p>
+  </div>
+
+  <div id="empty-state" class="watchlist-empty" hidden>
+    <h2>No repos in your watchlist yet</h2>
+    <p style="color:#8b949e; margin-bottom:16px;">Click the star icon on any repo in the <a href="/rising" style="color:#58a6ff">Rising Stars</a> page to start tracking it.</p>
+  </div>
+
+  <div class="summary-bar" id="summary-bar" hidden>
+    <div class="summary-stat">
+      <span class="summary-stat-label">Watching</span>
+      <span class="summary-stat-value" id="sum-total">—</span>
+    </div>
+    <div class="summary-stat">
+      <span class="summary-stat-label">Avg 7d Growth</span>
+      <span class="summary-stat-value positive" id="sum-avg7d">—</span>
+    </div>
+    <div class="summary-stat">
+      <span class="summary-stat-label">Accelerating</span>
+      <span class="summary-stat-value positive" id="sum-accel">—</span>
+    </div>
+    <div class="summary-stat">
+      <span class="summary-stat-label">Strong Signal</span>
+      <span class="summary-stat-value" id="sum-strong" style="color:#3fb950">—</span>
+    </div>
+  </div>
+
+  <div id="table-error" class="error-box" hidden></div>
+
+  <div class="table-wrap" id="table-wrap" hidden>
+    <table>
+      <thead>
+        <tr>
+          <th style="width:28px"></th>
+          <th style="text-align:left">Repository</th>
+          <th class="num">Stars</th>
+          <th class="num group-sep">1d</th>
+          <th class="num group-sep">7d</th>
+          <th class="num group-sep">7d %</th>
+          <th class="num group-sep">1m</th>
+          <th class="num group-sep">3m</th>
+          <th class="num group-sep">Accel</th>
+          <th class="num group-sep">Signal</th>
+        </tr>
+      </thead>
+      <tbody id="watch-body"></tbody>
+    </table>
+  </div>
+
+  <script>
+    const fmt = new Intl.NumberFormat('en-US');
+
+    const emptyState = document.getElementById('empty-state')!;
+    const summaryBar = document.getElementById('summary-bar')!;
+    const tableWrap = document.getElementById('table-wrap')!;
+    const watchBody = document.getElementById('watch-body')!;
+    const tableError = document.getElementById('table-error')!;
+    const lastRefresh = document.getElementById('last-refresh')!;
+
+    function getWatchlist(): string[] {
+      try {
+        return JSON.parse(localStorage.getItem('repo_watchlist') || '[]');
+      } catch { return []; }
+    }
+
+    function removeFromWatchlist(repoKey: string) {
+      const wl = getWatchlist().filter(k => k !== repoKey);
+      localStorage.setItem('repo_watchlist', JSON.stringify(wl));
+    }
+
+    function delta(v: number): string {
+      return v > 0 ? `+${fmt.format(v)}` : fmt.format(v);
+    }
+
+    function cls(v: number): string {
+      if (v > 0) return 'positive';
+      if (v < 0) return 'negative';
+      return 'neutral';
+    }
+
+    const watchlist = getWatchlist();
+
+    if (watchlist.length === 0) {
+      emptyState.hidden = false;
+    } else {
+      (async () => {
+        try {
+          const resp = await fetch('/data/repos.json');
+          if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+          const json = await resp.json();
+
+          // Build a Map for O(1) lookups
+          const repoMap = new Map<string, any>();
+          for (const r of json.repos) {
+            repoMap.set(`${r.o}/${r.n}`, r);
+          }
+
+          // Look up each watched repo
+          const rows: any[] = [];
+          for (const key of watchlist) {
+            const r = repoMap.get(key);
+            if (r) {
+              rows.push({
+                repo_owner: r.o,
+                repo_name: r.n,
+                current_stars: r.s,
+                current_forks: r.f,
+                one_day_stars: r.d1s,
+                seven_day_stars: r.d7s,
+                one_month_stars: r.d1ms,
+                three_month_stars: r.d3ms,
+                one_day_forks: r.d1f || 0,
+                seven_day_forks: r.d7f || 0,
+                one_month_forks: r.d1mf || 0,
+                three_month_forks: r.d3mf || 0,
+              });
+            }
+          }
+
+          if (rows.length === 0) {
+            emptyState.hidden = false;
+            return;
+          }
+
+          // Compute enrichments — Open-Source Freemium Deal Flow Model
+          type EnrichedRow = typeof rows[0] & { growth_rate: number; acceleration: number; momentum: number };
+          const enriched: EnrichedRow[] = rows.map(r => {
+            const rate = r.current_stars > 0 ? (r.seven_day_stars / r.current_stars) * 100 : 0;
+            const weeklyFrom1m = r.one_month_stars > 0 ? r.one_month_stars / 4.3 : 0;
+            const accel = weeklyFrom1m > 0 ? ((r.seven_day_stars / weeklyFrom1m) - 1) * 100 : 0;
+
+            // Step 1: Engagement (3x forks)
+            const E_total = r.current_stars + (3 * r.current_forks);
+            const E_1  = Math.max(0, r.one_day_stars      + (3 * r.one_day_forks));
+            const E_7  = Math.max(0, r.seven_day_stars    + (3 * r.seven_day_forks));
+            const E_30 = Math.max(0, r.one_month_stars    + (3 * r.one_month_forks));
+            const E_90 = Math.max(0, r.three_month_stars  + (3 * r.three_month_forks));
+
+            // Step 2: Ratio-based M_base — growth rate
+            const M_base = (0.75 * E_7 / (E_total + 1)) + (0.25 * E_30 / (E_total + 1));
+
+            // Step 3: Target Zone — hard cut <1k, sweet spot 1k-10k, R² >10k
+            const S = r.current_stars;
+            let R: number;
+            if (S < 1000) R = 0;
+            else if (S <= 10000) R = 1.0;
+            else R = (10000 / S) * (10000 / S);
+
+            // Step 4: Quality filters
+            const H_1  = 1 - (0.4 * E_1 / (E_7 + 1));
+
+            const weeklyRatio = E_7 / (E_30 + 1);
+            const Q_s = weeklyRatio >= 0.25
+              ? Math.min(1.5, 1 + (weeklyRatio - 0.25))
+              : weeklyRatio / 0.25;
+
+            const monthlyRatio = E_30 / (E_90 + 1);
+            const C_90 = monthlyRatio >= 0.33
+              ? Math.min(1.5, 1 + (monthlyRatio - 0.33))
+              : monthlyRatio / 0.33;
+
+            // Step 5: Final Signal
+            const momentum = Math.max(0, M_base * R * H_1 * Q_s * C_90 * 10000);
+
+            return { ...r, growth_rate: rate, acceleration: accel, momentum };
+          });
+
+          // Sort by momentum desc
+          enriched.sort((a, b) => b.momentum - a.momentum);
+
+          // Update summary
+          summaryBar.hidden = false;
+          tableWrap.hidden = false;
+          document.getElementById('sum-total')!.textContent = String(enriched.length);
+          const avg7d = enriched.reduce((s, r) => s + r.seven_day_stars, 0) / enriched.length;
+          document.getElementById('sum-avg7d')!.textContent = `+${avg7d.toFixed(0)}`;
+          document.getElementById('sum-accel')!.textContent = String(enriched.filter(r => r.acceleration > 20).length);
+          document.getElementById('sum-strong')!.textContent = String(enriched.filter(r => r.momentum >= 20).length);
+
+          lastRefresh.textContent = `${enriched.length} repos tracked`;
+
+          // Render table
+          for (const r of enriched) {
+            const repoKey = `${r.repo_owner}/${r.repo_name}`;
+            const tr = document.createElement('tr');
+
+            // Remove button
+            const removeTd = document.createElement('td');
+            const removeBtn = document.createElement('button');
+            removeBtn.className = 'watchlist-btn watched';
+            removeBtn.textContent = '\u2605';
+            removeBtn.title = 'Remove from watchlist';
+            removeBtn.addEventListener('click', () => {
+              removeFromWatchlist(repoKey);
+              tr.remove();
+              // Check if empty
+              if (watchBody.children.length === 0) {
+                emptyState.hidden = false;
+                tableWrap.hidden = true;
+                summaryBar.hidden = true;
+              }
+            });
+            removeTd.appendChild(removeBtn);
+            tr.appendChild(removeTd);
+
+            // Name
+            const nameTd = document.createElement('td');
+            nameTd.style.textAlign = 'left';
+            const a = document.createElement('a');
+            a.href = `/repo?owner=${encodeURIComponent(r.repo_owner)}&name=${encodeURIComponent(r.repo_name)}`;
+            a.textContent = repoKey;
+            nameTd.appendChild(a);
+            tr.appendChild(nameTd);
+
+            // Stars
+            const starsTd = document.createElement('td');
+            starsTd.className = 'num';
+            starsTd.textContent = fmt.format(r.current_stars);
+            tr.appendChild(starsTd);
+
+            // 1d
+            const d1Td = document.createElement('td');
+            d1Td.className = `num group-sep ${cls(r.one_day_stars)}`;
+            d1Td.textContent = delta(r.one_day_stars);
+            tr.appendChild(d1Td);
+
+            // 7d
+            const d7Td = document.createElement('td');
+            d7Td.className = `num group-sep ${cls(r.seven_day_stars)}`;
+            d7Td.textContent = delta(r.seven_day_stars);
+            tr.appendChild(d7Td);
+
+            // 7d %
+            const rateTd = document.createElement('td');
+            rateTd.className = `num group-sep ${r.growth_rate > 2 ? 'positive' : 'neutral'}`;
+            rateTd.textContent = r.growth_rate >= 999.9 ? 'NEW' : r.growth_rate.toFixed(1) + '%';
+            tr.appendChild(rateTd);
+
+            // 1m
+            const d1mTd = document.createElement('td');
+            d1mTd.className = `num group-sep ${cls(r.one_month_stars)}`;
+            d1mTd.textContent = delta(r.one_month_stars);
+            tr.appendChild(d1mTd);
+
+            // 3m
+            const d3mTd = document.createElement('td');
+            d3mTd.className = `num group-sep ${cls(r.three_month_stars)}`;
+            d3mTd.textContent = delta(r.three_month_stars);
+            tr.appendChild(d3mTd);
+
+            // Accel
+            const accelTd = document.createElement('td');
+            accelTd.className = 'num group-sep';
+            if (r.acceleration > 20) {
+              accelTd.textContent = '\u25B2\u25B2 ' + r.acceleration.toFixed(0) + '%';
+              accelTd.style.color = '#f85149';
+            } else if (r.acceleration > 0) {
+              accelTd.textContent = '\u25B2 ' + r.acceleration.toFixed(0) + '%';
+              accelTd.style.color = '#3fb950';
+            } else {
+              accelTd.textContent = '\u25B6 ' + r.acceleration.toFixed(0) + '%';
+              accelTd.style.color = '#8b949e';
+            }
+            tr.appendChild(accelTd);
+
+            // Signal
+            const sigTd = document.createElement('td');
+            sigTd.className = 'num group-sep';
+            const pill = document.createElement('span');
+            const mCls = r.momentum >= 20 ? 'momentum-hot' : r.momentum >= 5 ? 'momentum-warm' : 'momentum-mild';
+            pill.className = `momentum-pill ${mCls}`;
+            pill.textContent = r.momentum >= 10 ? Math.round(r.momentum).toLocaleString() : r.momentum.toFixed(1);
+            sigTd.appendChild(pill);
+            tr.appendChild(sigTd);
+
+            watchBody.appendChild(tr);
+          }
+        } catch (err: any) {
+          tableError.hidden = false;
+          tableError.textContent = `Failed to load data: ${err.message}. Run "npm run export-data" to generate the data file.`;
+        }
+      })();
+    }
+  </script>
+</Base>

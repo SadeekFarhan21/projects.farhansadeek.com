@@ -1,0 +1,6 @@
+{
+  "venvPath": "/opt/anaconda3",
+  "venv": "",
+  "pythonPath": "/opt/anaconda3/bin/python",
+  "extraPaths": ["/opt/anaconda3/lib/python3.13/site-packages"]
+}

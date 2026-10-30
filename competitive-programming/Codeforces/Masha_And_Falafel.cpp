@@ -1,0 +1,26 @@
+#include "bits/stdc++.h"
+using namespace std;
+#define int long long
+#define double long double
+
+void solve(){
+    int n; cin >> n;
+    set <int> s;
+    for(int i = 0; i < n; i++){
+        int a; cin >> a;
+        s.insert(a);
+        cout << s.size();
+        if(i != n - 1){
+            cout << " ";
+        }    
+    }
+    cout << "\n";
+    return;
+}
+
+int32_t main(){
+    int t; cin >> t;
+    for(int i = 0; i < t; i++){
+        solve();
+    }
+}

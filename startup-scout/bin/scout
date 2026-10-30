@@ -1,0 +1,31 @@
+#!/usr/bin/env bash
+# Headless runner: run the /scout pipeline without an interactive session.
+#
+#   bin/scout "seed-stage AI agents for accounting" --count 10
+#   bin/scout --profile "Linear"
+#
+# Cron example (every Monday at 7am):
+#   0 7 * * 1 cd ~/Documents/Projects/GitHub/startup-scout && bin/scout "new AI devtools that raised this week" --count 6 >> runs/cron.log 2>&1
+set -euo pipefail
+
+cd "$(dirname "$0")/.."
+
+if ! command -v claude >/dev/null 2>&1; then
+  echo "error: 'claude' CLI not found on PATH" >&2
+  exit 1
+fi
+
+if [[ $# -eq 0 ]]; then
+  echo "usage: bin/scout \"<thesis or companies>\" [--count N] [--depth quick|standard|deep]" >&2
+  echo "       bin/scout --profile \"<company>\" [--depth ...]" >&2
+  exit 1
+fi
+
+command="/scout"
+if [[ "$1" == "--profile" ]]; then
+  command="/profile"
+  shift
+fi
+
+# Permissions come from .claude/settings.json (web + writes to companies/ and runs/ only).
+exec claude -p "$command $*" --output-format text

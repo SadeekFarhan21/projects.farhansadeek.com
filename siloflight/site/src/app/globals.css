@@ -1,0 +1,218 @@
+@import "tailwindcss";
+
+@theme inline {
+  /* Tailwind's `font-sans` / `font-mono` resolve to whatever next/font assigns
+     to these CSS variables on <html> (see layout.tsx). */
+}
+
+/* ---------- Semantic palette tokens ----------
+   Inspired by the calm, single-accent aesthetic of farhansadeek.com.
+   Warm-tinted dark surfaces; never pure black, never pure white.  */
+:root {
+  /* Page surfaces */
+  --bg: #0d0d10;                          /* warm near-black, not navy, not pure */
+  --bg-soft: #131316;
+  --surface-1: rgba(255, 255, 255, 0.025); /* resting cards */
+  --surface-2: rgba(255, 255, 255, 0.05);  /* hover cards */
+
+  /* Borders — restrained */
+  --border: rgba(255, 255, 255, 0.06);
+  --border-strong: rgba(255, 255, 255, 0.10);
+  --border-accent: rgba(159, 199, 255, 0.25);
+
+  /* Text — softened, never pure white. Editorial feel. */
+  --text-1: #e4e4e7;     /* zinc-200 — primary, soft */
+  --text-2: #b0b0b0;     /* secondary body */
+  --text-3: #8a8a8a;     /* meta */
+  --text-mute: #595959;  /* disabled */
+
+  /* Single accent — soft sky blue, the only chromatic color used decoratively. */
+  --accent: #9fc7ff;          /* matches personal-site link color */
+  --accent-strong: #7eb1ff;
+  --accent-soft: rgba(159, 199, 255, 0.12);
+
+  /* Semantic — used only when meaning requires it (not decoration). */
+  --success: #34d399;
+  --warning: #fbbf24;
+  --danger: #fb7185;
+}
+
+/* Single subtle page halo — same on every route so the app reads cohesive. */
+.page-accent {
+  position: relative;
+}
+.page-accent::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: -1;
+  background:
+    radial-gradient(70rem 45rem at 0% 0%, rgba(159, 199, 255, 0.05), transparent 60%),
+    radial-gradient(50rem 35rem at 100% 100%, rgba(159, 199, 255, 0.03), transparent 60%);
+}
+
+html {
+  font-family: var(--font-sans), ui-sans-serif, system-ui, -apple-system,
+    "Segoe UI", Roboto, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+body {
+  font-family: inherit;
+}
+
+code,
+pre,
+kbd,
+samp,
+.font-mono {
+  font-family: var(--font-mono), ui-monospace, "SF Mono", "Fira Code",
+    monospace;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  html {
+    scroll-behavior: smooth;
+  }
+}
+
+/* ---------- Mobile app: light/dark via prefers-color-scheme ---------- */
+@media (prefers-color-scheme: dark) {
+  :root {
+    color-scheme: dark;
+  }
+}
+
+@keyframes flight-shimmer {
+  0% {
+    stroke-dashoffset: 0;
+    opacity: 0.85;
+  }
+  50% {
+    opacity: 1;
+  }
+  100% {
+    stroke-dashoffset: -200;
+    opacity: 0.85;
+  }
+}
+
+.flight-arc-anim {
+  stroke-dasharray: 6 14;
+  animation: flight-shimmer 6s linear infinite;
+}
+
+@keyframes shimmer {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(100%);
+  }
+}
+
+.skeleton-shimmer::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.04) 50%,
+    transparent 100%
+  );
+  animation: shimmer 1.6s infinite;
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes pop-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes slide-up {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fade-in {
+  animation: fade-in 200ms ease-out both;
+}
+
+.animate-pop-in {
+  animation: pop-in 220ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+.animate-slide-up {
+  animation: slide-up 320ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+@keyframes grow-x {
+  from {
+    transform: scaleX(0);
+  }
+  to {
+    transform: scaleX(var(--grow-to, 1));
+  }
+}
+
+.animate-grow-x {
+  transform-origin: left;
+  animation: grow-x 700ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+@keyframes grow-y {
+  from {
+    transform: scaleY(0);
+  }
+  to {
+    transform: scaleY(1);
+  }
+}
+
+.animate-grow-y {
+  transform-origin: bottom;
+  animation: grow-y 700ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+.focus-ring {
+  outline: none;
+}
+.focus-ring:focus-visible {
+  outline: 2px solid rgb(125 211 252);
+  outline-offset: 2px;
+  border-radius: 8px;
+}

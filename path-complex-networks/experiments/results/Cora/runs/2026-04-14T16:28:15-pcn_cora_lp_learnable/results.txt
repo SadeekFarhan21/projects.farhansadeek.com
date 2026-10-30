@@ -1,0 +1,72 @@
+========= Final result (Link Prediction) ==========
+Dataset:                Cora
+Eval Metric:            auc
+----------- Best epoch ----------
+Train:                  0.9282 +/- 0.0226
+Valid:                  0.7354 +/- 0.0230
+Test:                   0.7123 +/- 0.0164
+----------- Last epoch ----------
+Train:                  0.9429
+Valid:                  0.7220
+Test:                   0.7096
+---------------------------------
+
+Arguments:
+--seed 43 \
+--start_seed 0 \
+--stop_seed 9 \
+--device 0 \
+--model 'link_prediction_pcn' \
+--use_coboundaries 'False' \
+--use_boundaries 'False' \
+--indrop_rate 0.0 \
+--drop_rate 0.3 \
+--drop_position 'lin2' \
+--nonlinearity 'relu' \
+--readout 'sum' \
+--final_readout 'sum' \
+--readout_dims (0, 1, 2) \
+--jump_mode None \
+--graph_norm 'bn' \
+--disable_graph_norm 'False' \
+--lr 0.01 \
+--lr_scheduler 'ReduceLROnPlateau' \
+--lr_scheduler_decay_steps 50 \
+--lr_scheduler_decay_rate 0.5 \
+--lr_scheduler_patience 20.0 \
+--lr_scheduler_min 1e-05 \
+--num_layers 2 \
+--emb_dim 64 \
+--batch_size 1 \
+--epochs 200 \
+--num_workers 0 \
+--dataset 'Cora' \
+--task_type 'link_prediction' \
+--eval_metric 'auc' \
+--iso_eps 0.01 \
+--complex_type 'path' \
+--max_dim 2 \
+--max_ring_size None \
+--result_folder '/jumbo/lisp/farhan/Path-Complex-Networks/experiments/results' \
+--exp_name 'pcn_cora_lp_learnable' \
+--folds None \
+--init_method 'sum' \
+--train_eval_period 10 \
+--flow_points 400 \
+--flow_classes 3 \
+--train_orient 'default' \
+--test_orient 'default' \
+--early_stop \
+--preproc_jobs 2 \
+--weights_dir None \
+--num_layers_update 2 \
+--num_layers_combine 1 \
+--num_fc_layers 2 \
+--conv_type 'B' \
+--note None \
+--sha '00d39ab' \
+--val_ratio 0.05 \
+--test_ratio 0.1 \
+--neg_sampling_ratio 1.0 \
+--decoder_type 'dot' \
+--learnable_init \

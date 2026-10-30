@@ -1,0 +1,28 @@
+\begin{thebibliography}{1}
+
+\bibitem{hague2022globalgithub}
+Danny Hague.
+\newblock Global {GitHub}: Mapping the utilization of open source software by
+  organizations.
+\newblock Data snapshot, Center for Security and Emerging Technology,
+  Georgetown University, November 2022.
+
+\bibitem{kolaczyk2020sand}
+Eric~D. Kolaczyk and G{\'a}bor Cs{\'a}rdi.
+\newblock {\em Statistical Analysis of Network Data with R}.
+\newblock Use R! Springer Cham, 2020.
+
+\bibitem{rozemberczki2021musae}
+Benedek Rozemberczki, Carl Allen, and Rik Sarkar.
+\newblock Musae: Multi-scale attributed node embedding.
+\newblock {\em Applied Network Science}, 6(1):1--21, 2021.
+
+\bibitem{Upwork2026AIWebDev}
+{Upwork}.
+\newblock Will {AI} replace web developers? 2026 insights for freelancers and
+  clients.
+\newblock \url{https://www.upwork.com/resources/ai-replacing-web-developers},
+  2025.
+\newblock Accessed: 2026-03-17.
+
+\end{thebibliography}

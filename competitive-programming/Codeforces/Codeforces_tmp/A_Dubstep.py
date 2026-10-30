@@ -1,0 +1,5 @@
+s = input()
+s = s.replace('WUB', ' ').strip()
+s = s.replace('  ', ' ')
+s = s.replace(' ', ' ')
+print(s)

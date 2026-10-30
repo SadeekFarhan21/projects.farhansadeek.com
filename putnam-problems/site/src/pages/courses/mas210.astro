@@ -1,0 +1,203 @@
+---
+import Base from "../../layouts/Base.astro";
+import Masthead from "../../components/Masthead.astro";
+import Foot from "../../components/Foot.astro";
+import course from "../../../public/data/mas210.json" with { type: "json" };
+
+const sets = course.sets as {
+  set: number;
+  sections: { section: string; exercises: string[]; note?: string }[];
+}[];
+
+const total = sets
+  .flatMap((s) => s.sections)
+  .reduce((n, sec) => n + sec.exercises.length, 0);
+
+// The rail shows each set's chapter span, which is the only thing that
+// distinguishes one set from another at a glance.
+const chapterSpan = (s: (typeof sets)[number]) => {
+  const chapters = s.sections.map((sec) => sec.section.split(".")[0]);
+  const first = chapters[0];
+  const last = chapters[chapters.length - 1];
+  return first === last ? `ch ${first}` : `ch ${first}–${last}`;
+};
+---
+
+<Base
+  title="MAS210 Elementary Number Theory — problem sets"
+  description={`All ${sets.length} problem sets from KAIST MAS210 Elementary Number Theory, keyed to Burton's Elementary Number Theory, 7th edition.`}
+>
+  <Masthead
+    kicker="MAS210 Elementary Number Theory"
+    stats={[
+      `${sets.length} problem sets`,
+      `${total} exercises`,
+      course.textbookShort,
+      course.institution,
+    ]}
+  />
+
+  <div class="shell">
+    <aside class="rail">
+      <div class="rail-group">
+        <div class="rail-title">Problem sets</div>
+        <ol class="set-list">
+          {sets.map((s) => (
+            <li><a href={`#ps${s.set}`}>{s.set}<span>{chapterSpan(s)}</span></a></li>
+          ))}
+        </ol>
+      </div>
+    </aside>
+
+    <main class="stream">
+      <div class="stream-status">
+        <span>{course.institution}</span>
+        {course.source && <a href={course.source}>Original course page</a>}
+      </div>
+
+      <p class="course-note">
+        Every exercise is assigned from the required textbook: {course.textbook} {course.note}
+      </p>
+
+      {course.correction && <p class="course-note correction">{course.correction}</p>}
+
+      {sets.map((s) => (
+        <section class="pset" id={`ps${s.set}`}>
+          <div class="pset-margin">
+            <span class="pset-number">{s.set}</span>
+            <span class="pset-span">{chapterSpan(s)}</span>
+          </div>
+          <div class="pset-body">
+            <h2>Problem Set {s.set}</h2>
+            <ul class="sections">
+              {s.sections.map((sec) => (
+                <li>
+                  <span class="sec-label">§{sec.section}</span>
+                  <span class="sec-exercises">{sec.exercises.join(", ")}</span>
+                  {sec.note && <span class="sec-note">{sec.note}</span>}
+                </li>
+              ))}
+            </ul>
+          </div>
+        </section>
+      ))}
+    </main>
+  </div>
+
+  <Foot />
+</Base>
+
+<style>
+  .set-list {
+    list-style: none;
+    margin: 0.7rem 0 0;
+    padding: 0;
+    font-family: var(--font-mono);
+    font-size: 0.72rem;
+  }
+
+  .set-list a {
+    display: flex;
+    justify-content: space-between;
+    gap: 0.6rem;
+    padding: 0.3rem 0;
+    color: var(--ink-mid);
+    text-decoration: none;
+    border-bottom: 1px solid var(--rule);
+  }
+
+  .set-list a:hover { color: var(--accent); }
+  .set-list span { letter-spacing: 0.06em; }
+
+  .course-note {
+    max-width: var(--measure);
+    margin: 1.6rem 0 0;
+    font-size: 0.95rem;
+    color: var(--ink-mid);
+    line-height: 1.6;
+  }
+
+  .correction { margin-top: 0.7rem; }
+
+  .pset {
+    display: grid;
+    grid-template-columns: 96px minmax(0, 1fr);
+    gap: 2rem;
+    padding: 2.3rem 0;
+    border-bottom: 1px solid var(--rule);
+    scroll-margin-top: 1.5rem;
+  }
+
+  .pset-margin {
+    font-family: var(--font-mono);
+    font-size: 0.74rem;
+    color: var(--ink-mid);
+    text-align: right;
+    padding-top: 0.35rem;
+  }
+
+  .pset-number {
+    display: block;
+    font-family: var(--font-display);
+    font-size: 1.6rem;
+    font-weight: 600;
+    color: var(--ink);
+    line-height: 1;
+    margin-bottom: 0.3rem;
+  }
+
+  .pset-span { display: block; letter-spacing: 0.06em; }
+
+  .pset-body { min-width: 0; }
+
+  .pset-body h2 {
+    font-family: var(--font-display);
+    font-size: 1.25rem;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+    margin: 0 0 1.1rem;
+  }
+
+  .sections {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    max-width: var(--measure);
+  }
+
+  .sections li {
+    display: grid;
+    grid-template-columns: 4.4rem minmax(0, 1fr);
+    gap: 0.9rem;
+    padding: 0.45rem 0;
+    border-top: 1px solid var(--rule);
+    font-size: 1rem;
+    line-height: 1.6;
+  }
+
+  .sections li:first-child { border-top: 0; }
+
+  .sec-label {
+    font-family: var(--font-mono);
+    font-size: 0.74rem;
+    letter-spacing: 0.04em;
+    color: var(--nt);
+    padding-top: 0.22rem;
+  }
+
+  .sec-exercises { font-variant-numeric: tabular-nums; }
+
+  .sec-note {
+    grid-column: 2;
+    font-size: 0.85rem;
+    color: var(--ink-mid);
+  }
+
+  @media (max-width: 860px) {
+    .pset { grid-template-columns: 1fr; gap: 0.8rem; }
+    .pset-margin { text-align: left; display: flex; align-items: baseline; gap: 0.7rem; }
+    .pset-number { margin-bottom: 0; }
+    .sections li { grid-template-columns: 1fr; gap: 0.15rem; }
+    .sec-note { grid-column: 1; }
+  }
+</style>

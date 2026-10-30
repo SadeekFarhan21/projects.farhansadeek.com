@@ -1,0 +1,595 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Learnable Path-Complex Features and Unified Path–Cellular Message Passing for Link Prediction</title>
+  <meta name="description" content="Two small but targeted modifications to Path Complex Networks: position-aware learnable cell initialization and a unified path+cellular complex, evaluated on Cora link prediction.">
+  <meta property="og:title" content="Learnable Path-Complex Features and Unified Path–Cellular Message Passing for Link Prediction">
+  <meta property="og:description" content="Position-aware learnable cell initialization and a unified path+cellular complex for PCNs. Cora link prediction ablations across 10 seeds.">
+  <meta property="og:image" content="figures/path_complex_illustration.png">
+  <link rel="icon" type="image/svg+xml" href="favicon.svg">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
+  <script src="https://distill.pub/template.v2.js"></script>
+  <style>
+    /* Light tweaks on top of the Distill base styles */
+    d-article table {
+      border-collapse: collapse;
+      margin: 1rem 0;
+    }
+    d-article table th,
+    d-article table td {
+      border-top: 1px solid rgba(0, 0, 0, 0.1);
+      border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+      padding: 0.4rem 0.8rem;
+      text-align: left;
+      font-size: 0.95em;
+    }
+    d-article table thead th {
+      border-top: 2px solid rgba(0, 0, 0, 0.6);
+      border-bottom: 1px solid rgba(0, 0, 0, 0.6);
+    }
+    d-article table tbody tr:last-child td {
+      border-bottom: 2px solid rgba(0, 0, 0, 0.6);
+    }
+    d-article figure img {
+      width: 100%;
+    }
+    d-article figure figcaption {
+      font-size: 0.88em;
+      color: rgba(0, 0, 0, 0.6);
+      margin-top: 0.5rem;
+    }
+    d-article code {
+      background: rgba(0, 0, 0, 0.04);
+      padding: 0.05em 0.3em;
+      border-radius: 3px;
+      font-size: 0.92em;
+    }
+    d-article .theorem,
+    d-article .definition,
+    d-article .proposition,
+    d-article .corollary,
+    d-article .lemma {
+      border-left: 3px solid rgba(0, 0, 0, 0.2);
+      padding: 0.4rem 0 0.4rem 1rem;
+      margin: 1rem 0;
+    }
+    d-article .theorem-name {
+      font-variant: small-caps;
+      font-weight: 600;
+      margin-right: 0.4rem;
+    }
+    d-article .proof {
+      font-size: 0.95em;
+      margin: 1rem 0;
+    }
+    d-article .proof-name {
+      font-style: italic;
+      margin-right: 0.4rem;
+    }
+    d-title .button-container {
+      grid-column: text;
+      display: flex;
+      flex-direction: row;
+      justify-content: center;
+      gap: 0.75rem;
+      margin: 1.5rem 0 0;
+      flex-wrap: wrap;
+    }
+    d-title .icon-btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.45rem;
+      padding: 0.45rem 0.9rem;
+      border-radius: 6px;
+      text-decoration: none;
+      font-size: 0.85rem;
+      font-weight: 500;
+      white-space: nowrap;
+      transition: background 0.15s, border-color 0.15s, color 0.15s, transform 0.05s;
+      border: 1px solid rgba(0, 0, 0, 0.85);
+    }
+    d-title .icon-btn i {
+      font-size: 1em;
+      line-height: 1;
+    }
+    d-title .icon-btn.primary {
+      background: #000;
+      color: #fff;
+    }
+    d-title .icon-btn.primary:hover {
+      background: #222;
+    }
+    d-title .icon-btn.secondary {
+      background: #fff;
+      color: #000;
+    }
+    d-title .icon-btn.secondary:hover {
+      background: #f4f4f4;
+    }
+    d-title .icon-btn:active {
+      transform: translateY(1px);
+    }
+    /* Sticky table of contents in the left margin (Distill-style). */
+    nav.toc {
+      display: none;
+    }
+    @media (min-width: 1180px) {
+      nav.toc {
+        display: block;
+        grid-column: screen-start / text-start;
+        grid-row: 1 / span 9999;
+        justify-self: end;
+        padding: 0 1.5rem 0 1rem;
+        max-width: 320px;
+        position: sticky;
+        top: 1rem;
+        align-self: start;
+        max-height: calc(100vh - 2rem);
+        overflow-y: auto;
+        font-size: 0.85rem;
+        line-height: 1.5;
+        border-right: 1px solid rgba(0, 0, 0, 0.1);
+      }
+      nav.toc h3 {
+        font-size: 1.1rem;
+        font-weight: 600;
+        margin: 0 0 0.75rem;
+        color: rgba(0, 0, 0, 0.85);
+      }
+      nav.toc ul {
+        list-style: none;
+        padding: 0;
+        margin: 0;
+      }
+      nav.toc li {
+        margin: 0.35rem 0;
+      }
+      nav.toc li.toc-h2 > a {
+        font-weight: 600;
+        color: rgba(0, 0, 0, 0.85);
+      }
+      nav.toc li.toc-h3 {
+        padding-left: 1rem;
+      }
+      nav.toc li.toc-h3 > a {
+        color: rgba(0, 0, 0, 0.65);
+        font-weight: 400;
+      }
+      nav.toc a {
+        text-decoration: none;
+        border-bottom: none;
+      }
+      nav.toc a:hover {
+        color: rgba(0, 0, 0, 1);
+        text-decoration: underline;
+      }
+    }
+    /* Hide the auto-generated DOI block in d-byline and rebalance the
+       remaining columns (Authors | Affiliations | Published). */
+    d-byline .byline > div:last-child {
+      display: none;
+    }
+    @media (min-width: 768px) {
+      d-byline .byline {
+        grid-template-columns: 1fr 1fr 1fr;
+      }
+    }
+  </style>
+</head>
+
+<body>
+  <d-front-matter>
+    <script id='distill-front-matter' type="text/json">{
+      "title": "Learnable Path-Complex Features and Unified Path–Cellular Message Passing for Link Prediction",
+      "description": "Two small but targeted modifications to Path Complex Networks: position-aware learnable cell initialization and a unified path+cellular complex, evaluated on Cora link prediction.",
+      "published": "May 22, 2026",
+      "authors": [
+        {
+          "author": "Farhan Sadeek",
+          "authorURL": "mailto:farhan.sadeek.29@dartmouth.edu",
+          "affiliations": [{"name": "Dartmouth College"}]
+        },
+        {
+          "author": "Sie Hendrata Dharmawan",
+          "authorURL": "mailto:sie.hendrata.dharmawan.th@dartmouth.edu",
+          "affiliations": [{"name": "Dartmouth College"}]
+        },
+        {
+          "author": "Peter Chin",
+          "authorURL": "mailto:pc@dartmouth.edu",
+          "affiliations": [{"name": "Dartmouth College"}]
+        }
+      ],
+      "katex": {
+        "delimiters": [
+          {"left": "$$", "right": "$$", "display": true},
+          {"left": "$", "right": "$", "display": false}
+        ]
+      }
+    }</script>
+  </d-front-matter>
+
+  <d-title>
+    <h1>Learnable Path-Complex Features and Unified Path–Cellular Message Passing for Link Prediction</h1>
+    <p>Two small but targeted modifications to Path Complex Networks: a position-aware learnable cell initialization that strictly subsumes the deterministic scatter-sum, and a unified path+cellular complex in which path-cells and ring-cells coexist and communicate through shared edge boundaries.</p>
+    <div class="button-container">
+      <a href="papers/PCN_Link_Prediction.pdf" class="icon-btn secondary">
+        <i class="fa-solid fa-file-arrow-down"></i> Download PDF
+      </a>
+      <a href="https://github.com/SadeekFarhan21/Path-Complex-Networks" class="icon-btn secondary">
+        <i class="fa-solid fa-code"></i> View Code
+      </a>
+    </div>
+  </d-title>
+
+  <d-byline></d-byline>
+
+  <d-article>
+
+    <nav class="toc" aria-label="Table of contents">
+      <h3>Contents</h3>
+      <ul>
+        <li class="toc-h2"><a href="#section-1">Introduction</a></li>
+        <li class="toc-h2"><a href="#section-2">Preliminaries</a></li>
+        <li class="toc-h3"><a href="#section-2.1">Path complexes</a></li>
+        <li class="toc-h3"><a href="#section-2.2">Relations between cells</a></li>
+        <li class="toc-h3"><a href="#section-2.3">Deterministic initialization</a></li>
+        <li class="toc-h3"><a href="#section-2.4">Link prediction</a></li>
+        <li class="toc-h2"><a href="#section-3">Method</a></li>
+        <li class="toc-h3"><a href="#section-3.1">Learnable init</a></li>
+        <li class="toc-h3"><a href="#section-3.2">Unified complex</a></li>
+        <li class="toc-h3"><a href="#section-3.3">Theoretical results</a></li>
+        <li class="toc-h3"><a href="#section-3.4">Message passing</a></li>
+        <li class="toc-h3"><a href="#section-3.5">Decoder</a></li>
+        <li class="toc-h2"><a href="#section-4">Experiments</a></li>
+        <li class="toc-h3"><a href="#section-4.1">Setup</a></li>
+        <li class="toc-h3"><a href="#section-4.2">Ablations</a></li>
+        <li class="toc-h3"><a href="#section-4.3">Computational analysis</a></li>
+        <li class="toc-h3"><a href="#section-4.4">Discussion</a></li>
+        <li class="toc-h2"><a href="#section-5">Related work</a></li>
+        <li class="toc-h2"><a href="#section-6">Conclusion</a></li>
+        <li class="toc-h2"><a href="#app-proofs">Appendix: Proofs</a></li>
+        <li class="toc-h2"><a href="#app-formula-mp">Appendix: Message-passing formula</a></li>
+        <li class="toc-h2"><a href="#app-experiments">Appendix: Experiment details</a></li>
+      </ul>
+    </nav>
+
+    <h2>Abstract</h2>
+    <p>Path Complex Networks (PCN) generalize simplicial and cellular message-passing schemes by lifting a graph to its path complex and exchanging messages between elementary $k$-paths through boundary, co-boundary, and upper/lower-adjacency relations. In the original formulation, the feature of a $k$-cell $(v_0, \ldots, v_k)$ is a deterministic scatter-sum (or scatter-mean) of its constituent node features, discarding both the ordering along the path and any learnable capacity at the lifting step. Moreover, PCN commits to a single topological lift—paths, cliques, or rings—so the model cannot simultaneously exploit the complementary inductive biases offered by different cell types. We address both limitations in the context of transductive link prediction. First, we introduce a position-aware learnable feature initialization in which each position along a $k$-cell receives its own linear map, yielding order-sensitive path features at no asymptotic cost. We prove that this initialization strictly subsumes the deterministic scatter-sum. Second, we construct a unified path&thinsp;+&thinsp;cellular complex in which path-cells and ring-cells coexist at the same dimension and communicate through shared edge boundaries, so that a triangle $ABC$ is simultaneously a path $A{\to}B{\to}C$ and a 3-cycle without duplicating adjacency bookkeeping. We show that the isomorphism test induced by message passing on the unified complex (which we call U-PWL) is at least as powerful as both PWL and CWL($k$-IC), giving our architecture the theoretical expressivity of path-based and ring-based lifts simultaneously. We evaluate both contributions on Cora link prediction, ablating (i) deterministic vs. learnable initialization and (ii) path-only vs. unified complexes across 10 seeds per configuration, and we analyze the incurred lifting and message-passing cost both analytically and empirically.</p>
+
+    <h2 id="section-1">Introduction</h2>
+    <p>Graph neural networks (GNNs) that rely on the 1-Weisfeiler–Lehman (1-WL) update rule are fundamentally limited in their ability to distinguish non-isomorphic graphs <d-cite key="xu_how_2019,morris_weisfeiler_2019"></d-cite>. Higher-order topological GNNs escape this upper bound by lifting the graph to a richer combinatorial object—a simplicial complex <d-cite key="bodnar_weisfeiler_2021,ebli_simplicial_2020,roddenberry_principled_2021"></d-cite>, a regular cell complex <d-cite key="bodnar_weisfeiler_2022,giusti_cell_2022,giusti_cin_2023"></d-cite>, or a path complex <d-cite key="truong_weisfeiler_2024"></d-cite>—and running message passing over its cells. Each lift carries a different inductive bias: simplicial complexes privilege cliques, regular cell complexes privilege induced cycles, and path complexes privilege simple paths and therefore impose no structural assumption at all. For link prediction, however, the closed-neighborhood structure of a candidate edge $(u, v)$—how $u$ and $v$ co-participate in short cycles—is precisely the signal a model needs, and pure-path lifts discard that signal by construction.</p>
+
+    <p>Path Complex Networks (PCN) <d-cite key="truong_weisfeiler_2024"></d-cite> are attractive precisely because paths exist in every connected graph, but the published formulation leaves two degrees of freedom unused. First, cell features at dimension $k \geq 1$ are initialized by a deterministic scatter-sum of node features. Because summation is symmetric under permutation, the initial feature of the elementary path $A{\to}B{\to}C$ is identical to that of $C{\to}B{\to}A$, which is counterintuitive for an object whose defining property is an ordering of its vertices. Second, the lift is monolithic: one picks paths <em>or</em> rings <em>or</em> cliques. In practice, however, the same substructure—say a triangle—is a clique, a 3-cycle, and a path of length two simultaneously, and a model with access to all three views should, in principle, be strictly more expressive than any single one of them. This problem is especially pronounced for link prediction: the features that drive prediction (common neighbors, short cycles, triangle count) are expressed naturally in terms of ring-cells, while the features that drive graph-classification performance in PCN (long open paths) are expressed naturally in terms of path-cells.</p>
+
+    <figure id="fig-complexes-comparison">
+      <img src="figures/complexes_comparison.png" alt="Comparison of simplicial, cellular and path complexes on a small graph.">
+      <figcaption><strong>Figure 1.</strong> (a) Original graph. (b) Simplicial complex arising from the graph: one 2-simplex, four 1-simplices, and four 0-simplices. The regular cell complex coincides with the simplicial complex in this case. (c) Simple-path spaces $\mathcal{S}_2$ and $\mathcal{S}_3$ corresponding to the path complex arising from the graph. Elementary paths of $\mathcal{S}_0$ and $\mathcal{S}_1$ coincide with 0-cells and 1-cells. Figure reproduced from <d-cite key="truong_weisfeiler_2024"></d-cite>.</figcaption>
+    </figure>
+
+    <p>We propose two small but targeted modifications to PCN.</p>
+    <ol>
+      <li><strong>Learnable, position-aware cell initialization.</strong> For an elementary $k$-path $(v_0, \ldots, v_k)$ we learn $k+1$ linear maps $W_0^{(k)}, \ldots, W_k^{(k)}$, one per position, and define the initial feature as $h_\sigma^{(0)} = \sum_{i=0}^{k} W_i^{(k)} x_{v_i}$. Node features thus enter the path-complex through a learned, ordered transform rather than a symmetric aggregation.</li>
+      <li><strong>Unified path&thinsp;+&thinsp;cellular complex.</strong> We build a single complex in which path-cells and ring-cells coexist at dimension two, share the same edge identifier map, and communicate through their shared edges during message passing. A triangle therefore sends messages <em>as</em> a ring-cell and simultaneously appears as a path-cell; the two views are fused downstream through the dim-1 edges they both bound.</li>
+    </ol>
+
+    <p>Both modifications are drop-in: the message-passing layer is unchanged, and the per-cell feature dimension is unchanged. We evaluate on Cora link prediction in the transductive setting of <d-cite key="kipf_variational_2016"></d-cite>, reporting mean $\pm$ standard deviation of test ROC-AUC over 10 seeds for four configurations: (path, deterministic), (path, learnable), (unified, deterministic), (unified, learnable).</p>
+
+    <p><strong>Contributions.</strong> Our work (i) identifies two underused degrees of freedom in the PCN lifting step—position order and cell-type multiplicity—and (ii) provides lightweight, backward-compatible modifications that address both. We prove that the position-aware initialization strictly subsumes the deterministic scatter-sum used by <d-cite key="truong_weisfeiler_2024"></d-cite>, and that the unified lift (U-PWL) inherits the theoretical guarantees of both PWL <d-cite key="truong_weisfeiler_2024"></d-cite> and CWL($k$-IC) <d-cite key="bodnar_weisfeiler_2022"></d-cite>. We validate the theory with an ablation study on Cora link prediction, and we analyze the computational overhead of both modifications analytically and empirically.</p>
+
+    <h2 id="section-2">Preliminaries</h2>
+
+    <h3 id="section-2.1">Path complexes</h3>
+    <p>Given a finite graph $G = (\mathcal{V}, \mathcal{E})$, a <em>simple path</em> of length $k$ is an ordered tuple $(v_0, \ldots, v_k)$ of distinct vertices with $\{v_i, v_{i+1}\} \in \mathcal{E}$ for all $0 \leq i < k$. Following <d-cite key="grigoryan_homologies_2013,grigoryan_path_2020,truong_weisfeiler_2024"></d-cite>, the set $P_k(G)$ of all such paths, together with boundary maps $\partial$ defined by deletion of the leftmost or rightmost vertex, forms a <em>path complex</em>.</p>
+
+    <div class="definition">
+      <span class="theorem-name">Definition 1 (Elementary $p$-path).</span>
+      Given a finite non-empty vertex set $\mathcal{V}$, an elementary $p$-path on $\mathcal{V}$ is any sequence of vertices $e_{i_0 \ldots i_p}$ with length $p + 1$.
+    </div>
+
+    <div class="definition">
+      <span class="theorem-name">Definition 2 (Boundary operator).</span>
+      The boundary operator on elementary $p$-paths is defined as
+      <d-math block>
+        \partial \, e_{i_0 \ldots i_p} = \sum_{q=0}^{p} (-1)^q e_{i_0 \ldots \hat{i}_q \ldots i_p},
+      </d-math>
+      where $\hat{i}_q$ indicates removal of the index $i_q$ from the sequence.
+    </div>
+
+    <p>Message passing in PCN operates over $P_0(G) \cup P_1(G) \cup \cdots \cup P_K(G)$ via boundary, co-boundary, and upper/lower-adjacency relations between elementary paths, in direct analogy with MPSN <d-cite key="bodnar_weisfeiler_2021"></d-cite> and CWN <d-cite key="bodnar_weisfeiler_2022"></d-cite>.</p>
+
+    <figure id="fig-path-complex-example">
+      <img src="figures/path_complex_example.png" alt="Path complex examples for a length-3 path and a 4-ring.">
+      <figcaption><strong>Figure 2.</strong> Examples of path complexes arising from (a) a simple path of length three and (b) a ring of size four. Blue arrows denote upper-adjacency; orange arrows denote boundary relations. Figure reproduced from <d-cite key="truong_weisfeiler_2024"></d-cite>.</figcaption>
+    </figure>
+
+    <h3 id="section-2.2">Relations between cells</h3>
+    <p>For a path complex $P$ and cells $\sigma, \tau \in P$, the relations used for message passing are:</p>
+    <ul>
+      <li>Boundary $\mathcal{B}(\sigma) = \{\tau \mid \tau \prec \sigma\}$.</li>
+      <li>Co-boundary $\mathcal{C}(\sigma) = \{\tau \mid \sigma \prec \tau\}$.</li>
+      <li>Upper-adjacent neighborhood $\mathcal{N}_\uparrow(\sigma) = \{\tau \mid \exists\,\delta:\; \sigma \prec \delta \wedge \tau \prec \delta\}$.</li>
+      <li>Lower-adjacent neighborhood $\mathcal{N}_\downarrow(\sigma) = \{\tau \mid \exists\,\delta:\; \delta \prec \sigma \wedge \delta \prec \tau\}$.</li>
+    </ul>
+    <p>As proven in <d-cite key="truong_weisfeiler_2024"></d-cite>, PWL with update rule $\mathrm{Hash}(c_\sigma^t, c_\mathcal{B}^t(\sigma), c_\uparrow^t(\sigma))$ is as powerful as PWL with the generalized update rule that also includes co-boundary and lower-adjacent messages. We adopt the former throughout.</p>
+
+    <h3 id="section-2.3">Deterministic feature initialization in PCN</h3>
+    <p>In the public PCN implementation <d-cite key="truong_weisfeiler_2024"></d-cite>, the feature of an elementary $k$-path at the input layer is</p>
+    <d-math block>
+      h_\sigma^{(0)} = \bigoplus_{v \in \sigma} x_v, \qquad \sigma = (v_0, \ldots, v_k),
+    </d-math>
+    <p>where $\oplus \in \{\text{sum}, \text{mean}\}$ is a permutation-invariant aggregator and $x_v$ is the input feature of vertex $v$. We refer to this as the <em>deterministic init</em>. The expression is symmetric under any permutation of $(v_0, \ldots, v_k)$, so path orientation is lost at initialization and cannot be recovered by subsequent layers that operate only on $h_\sigma^{(0)}$.</p>
+
+    <h3 id="section-2.4">Link prediction</h3>
+    <p>We consider the transductive link-prediction setting of <d-cite key="kipf_variational_2016"></d-cite>. Given a graph $G = (\mathcal{V}, \mathcal{E})$, a fraction of edges is held out for validation and test, and the model is trained to discriminate observed edges from sampled negatives. A graph encoder $f_\theta: \mathcal{V} \to \mathbb{R}^d$ produces a node embedding $h_v = f_\theta(v)$, and a decoder $g_\phi: \mathbb{R}^d \times \mathbb{R}^d \to [0, 1]$ produces an edge score $\hat{y}_{uv} = g_\phi(h_u, h_v)$. Throughout we use a dot-product decoder $\hat{y}_{uv} = \sigma(h_u^\top h_v)$ and binary cross-entropy loss, evaluated by ROC-AUC on the held-out edges.</p>
+
+    <h2 id="section-3">Method</h2>
+
+    <h3 id="section-3.1">Learnable position-aware initialization</h3>
+    <p>We replace the deterministic init with</p>
+    <d-math block>
+      h_\sigma^{(0)} = \sum_{i=0}^{k} W_i^{(k)} \, x_{v_i}, \qquad \sigma = (v_0, \ldots, v_k),
+    </d-math>
+    <p>where $W_i^{(k)} \in \mathbb{R}^{d \times d_\text{in}}$ is a learnable linear map specific to the pair $(k, i)$ of dimension and position. Asymptotically the cost of the learnable init is identical to the deterministic one: each node contributes exactly once to the feature of each cell that contains it, and the only change is that the contribution is multiplied by a position-specific matrix before being accumulated.</p>
+
+    <div class="proposition">
+      <span class="theorem-name">Proposition 1.</span>
+      When $W_i^{(k)} = W$ for all $(k, i)$, the learnable init reduces to $W \sum_{i=0}^{k} x_{v_i}$, which is a linear projection of the deterministic scatter-sum. Hence any model built on top of the deterministic init is realizable by a model built on top of the learnable init; the converse does not hold.
+    </div>
+
+    <div class="theorem">
+      <span class="theorem-name">Theorem 1.</span>
+      There exist a graph $G$ and elementary paths $\sigma, \sigma' \in P_k(G)$ which are equal as unordered multi-sets of vertices but differ as ordered tuples, such that the learnable init can assign them distinct initial features, whereas the deterministic init cannot.
+    </div>
+    <p>A proof appears in <a href="#app-proof-learnable">Appendix A.1</a>. The practical implication is that the learnable init breaks orientation symmetry at time step $t = 0$; any information that depends on the ordering of vertices along a path is thus available to all subsequent message-passing layers, rather than being filtered out irretrievably at initialization.</p>
+
+    <h3 id="section-3.2">Unified path–cellular complex</h3>
+    <p>Let $P_k(G)$ denote the set of simple $k$-paths of $G$ and $R(G)$ the set of induced cycles up to length $L$. We build a <em>unified complex</em> $\mathcal{C}(G)$ with cells</p>
+    <d-math block>
+      \mathcal{C}_0 = \mathcal{V}, \quad \mathcal{C}_1 = P_1(G), \quad \mathcal{C}_2 = P_2(G) \cup R(G), \quad \mathcal{C}_k = P_k(G) \ \text{for } k \geq 3.
+    </d-math>
+    <p>The dim-0 and dim-1 identifier maps are shared across path-cells and ring-cells—edges are canonicalized to sorted tuples—so a ring-cell and a path-cell that share an edge point to the same edge identifier. Boundary extraction branches on cell type: path-cells use the left/right-deletion rule from <a href="#section-2.1">§2.1</a>, and ring-cells use the standard CW boundary map that returns every edge of the cycle. Upper and lower adjacencies are then computed by the existing PCN routine on the combined boundary tables, so messages flow seamlessly between a ring-cell and a path-cell that happen to share an edge.</p>
+
+    <figure id="fig-unified">
+      <img src="figures/path_complex_illustration.png" alt="Unified path+cellular complex on a small graph." style="max-width: 80%; margin: 0 auto; display: block;">
+      <figcaption><strong>Figure 3.</strong> The unified path&thinsp;+&thinsp;cellular complex on a small graph. At dimension two, the triangle $ABC$ appears simultaneously as a ring-cell and as a path-cell $A{\to}B{\to}C$. Both cells share the edge-cells $AB$ and $BC$; the ring-cell additionally shares $AC$. Because messages flow between any two dim-2 cells that share a dim-1 boundary, the ring and path views of the triangle communicate during upper- and lower-adjacency message passing.</figcaption>
+    </figure>
+
+    <p><strong>Why this helps link prediction.</strong> Link prediction rewards models whose node embeddings capture closed-neighborhood structure: a pair $(u, v)$ is more likely to be linked when $u$ and $v$ participate in short cycles. Path-cells expose only open neighborhoods; ring-cells expose closed ones. Since cycles of length at most $L$ in Cora are overwhelmingly short, adding ring-cells to a path complex injects a targeted topological signal that paths alone do not carry.</p>
+
+    <h3 id="section-3.3">Theoretical results</h3>
+    <p>We establish that the isomorphism test induced by color refinement on the unified complex—which we call U-PWL—inherits the expressivity of both PWL <d-cite key="truong_weisfeiler_2024"></d-cite> and CWL($k$-IC) <d-cite key="bodnar_weisfeiler_2022"></d-cite>.</p>
+
+    <div class="theorem">
+      <span class="theorem-name">Theorem 2.</span>
+      U-PWL is at least as powerful as PWL at distinguishing non-isomorphic graphs.
+    </div>
+
+    <div class="theorem">
+      <span class="theorem-name">Theorem 3.</span>
+      U-PWL is at least as powerful as CWL($k$-IC) with maximum dimension 2 at distinguishing non-isomorphic graphs.
+    </div>
+
+    <p>Combining the two theorems and the result of <d-cite key="truong_weisfeiler_2024"></d-cite> that PWL is at least as powerful as CWL($k$-IC) with maximum dimension 2, we obtain:</p>
+
+    <div class="corollary">
+      <span class="theorem-name">Corollary 1.</span>
+      U-PWL is strictly more powerful than 1-WL at distinguishing non-isomorphic graphs. Moreover, U-PWL is not less powerful than 3-WL.
+    </div>
+
+    <p>Proofs of Theorems 2 and 3 appear in <a href="#app-proof-upwl-pwl">Appendix A.2</a> and <a href="#app-proof-upwl-cwl">Appendix A.3</a>; the proof of Corollary 1 is immediate from Theorems 2–3 together with prior results by <d-cite key="bodnar_weisfeiler_2021"></d-cite> and <d-cite key="truong_weisfeiler_2024"></d-cite>.</p>
+
+    <h3 id="section-3.4">Message passing</h3>
+    <p>Following <d-cite key="bodnar_weisfeiler_2022,truong_weisfeiler_2024"></d-cite>, we update the feature of a cell $\sigma$ by aggregating boundary and upper-adjacent messages:</p>
+    <d-math block>
+      m_\mathcal{B}^{(t+1)}(\sigma) = \mathrm{AGG}_{\tau \in \mathcal{B}(\sigma)} \left( M_\mathcal{B}(h_\sigma^{(t)}, h_\tau^{(t)}) \right),
+    </d-math>
+    <d-math block>
+      m_\uparrow^{(t+1)}(\sigma) = \mathrm{AGG}_{\tau \in \mathcal{N}_\uparrow(\sigma), \delta \in \mathcal{C}(\sigma, \tau)} \left( M_\uparrow(h_\sigma^{(t)}, h_\tau^{(t)}, h_\delta^{(t)}) \right),
+    </d-math>
+    <d-math block>
+      h_\sigma^{(t+1)} = \mathrm{UP}\left( h_\sigma^{(t)}, m_\mathcal{B}^{(t+1)}(\sigma), m_\uparrow^{(t+1)}(\sigma) \right),
+    </d-math>
+    <p>where $M_\mathcal{B}, M_\uparrow$, and $\mathrm{UP}$ are learnable functions realized by multi-layer perceptrons (MLPs). In the unified complex, the boundary and adjacency sets include ring-cells alongside path-cells, but the update rule itself is unchanged.</p>
+
+    <h3 id="section-3.5">Link-prediction decoder</h3>
+    <p>After $T$ message-passing layers, we extract node embeddings $h_v = h_\sigma^{(T)}$ for all $\sigma \in \mathcal{C}_0$ and score a candidate edge $(u, v)$ by a dot-product decoder:</p>
+    <d-math block>
+      \hat{y}_{uv} = \sigma\left( h_u^\top h_v \right),
+    </d-math>
+    <p>where $\sigma$ is the logistic sigmoid. Training minimizes binary cross-entropy over sampled positive and negative edges.</p>
+
+    <h2 id="section-4">Experiments</h2>
+
+    <p>We evaluate our two contributions on Cora link prediction <d-cite key="sen_collective_2008,kipf_variational_2016"></d-cite>. Cora is a citation network with 2,708 nodes and 5,429 undirected edges; each node is a scientific publication with a 1,433-dimensional bag-of-words feature vector and a class label in one of seven research areas. We do not use the class labels. Detailed hyperparameter settings and an extended ablation on individual modifications appear in <a href="#app-experiments">Appendix B</a>.</p>
+
+    <h3 id="section-4.1">Setup</h3>
+    <p>We follow the transductive link-prediction protocol of <d-cite key="kipf_variational_2016"></d-cite>: edges are split 85/5/10 into train/validation/test with an equal number of sampled negatives per split. The path complex (or unified complex) is built from training message-passing edges only, so there is no leakage of validation or test edges into the topology. All models use a 2-layer PCN encoder with hidden dimension 64, dropout 0.3 applied before the final linear layer, batch normalization, a dot-product decoder, and Adam <d-cite key="kingma_adam_2015"></d-cite> with learning rate 0.01 and <code>ReduceLROnPlateau</code> scheduling (patience 20, decay rate 0.5, minimum learning rate $10^{-5}$). Each run is 200 epochs with early stopping on validation AUC. We report mean $\pm$ standard deviation over 10 seeds ($0, \ldots, 9$) and adopt the model checkpoint from the best validation epoch.</p>
+
+    <p>For the unified complex, the maximum ring size is set to $L = 7$, which is the default cutoff used by <d-cite key="bodnar_weisfeiler_2022"></d-cite> on small molecular graphs and which we found to be a reasonable compromise between topological coverage and lifting cost on Cora.</p>
+
+    <h3 id="section-4.2">Ablations</h3>
+
+    <figure>
+      <table>
+        <caption style="caption-side: bottom; padding-top: 0.5rem; font-size: 0.95em; color: rgba(0,0,0,0.6);"><strong>Table 1.</strong> Cora link-prediction ROC-AUC (mean $\pm$ standard deviation over 10 seeds). Rows correspond to the four configurations obtained by crossing the lift (path vs. unified path&thinsp;+&thinsp;cellular) with the cell-feature initialization (deterministic scatter-sum vs. position-aware learnable). Bold indicates the best result in each column.</caption>
+        <thead>
+          <tr><th>Complex</th><th>Init</th><th>Val AUC</th><th>Test AUC</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>Path</td><td>Deterministic</td><td>$0.7344 \pm 0.0274$</td><td>$0.7113 \pm 0.0239$</td></tr>
+          <tr><td>Path</td><td>Learnable</td><td>$0.7354 \pm 0.0230$</td><td>$0.7123 \pm 0.0164$</td></tr>
+          <tr><td>Unified</td><td>Deterministic</td><td>$\mathbf{0.7366 \pm 0.0270}$</td><td>$\mathbf{0.7132 \pm 0.0165}$</td></tr>
+          <tr><td>Unified</td><td>Learnable</td><td>$0.7335 \pm 0.0213$</td><td>$0.7111 \pm 0.0175$</td></tr>
+        </tbody>
+      </table>
+    </figure>
+
+    <p>Table 1 reports the four configurations. The (path, deterministic) baseline achieves test AUC $0.7113 \pm 0.0239$, consistent with the fact that PCN was not designed for link prediction and a pure-path lift provides little closed-neighborhood signal. Switching to the learnable initialization alone (row 2) yields a marginal mean improvement (0.7123) and a substantial reduction in variance (0.0164 vs. 0.0239), which we attribute to the position-specific projections stabilizing the training trajectory across seeds. Replacing the path lift with the unified lift (row 3) gives the best mean test AUC (0.7132), again with reduced variance. Composing both modifications (row 4) does not produce further gains and in fact performs slightly worse than either modification in isolation, suggesting that the two degrees of freedom are partially redundant on Cora; we conjecture that the additional parameters of the learnable init interact with the richer unified adjacency structure in a way that regularization at dropout 0.3 cannot fully counter.</p>
+
+    <h3 id="section-4.3">Computational analysis</h3>
+    <p>Table 2 reports the empirical cost of the four configurations on Cora, measured on an NVIDIA<sup>&reg;</sup> GPU with <code>tools/bench_cost.py</code>. Three effects are visible. First, the learnable init adds 275,136 parameters to the encoder (from 428,544 to 703,680, a 64% increase) because the shared input projection $W^{(k)}$ is replaced by $(k + 1)$ position-specific projections for each $k = 1, 2$; in wall-clock terms a training epoch grows from 28.5 ms to 37.5 ms on the path complex, a 32% overhead. Second, moving from the path lift to the unified lift raises the dim-2 cell count from 38,008 path-cells to 47,717 path- and ring-cells (an extra 9,709 induced cycles of length at most $L = 7$); this is a 26% increase in dim-2 cells and approximately a tripling of lift time, from 22.0 s to 62.8 s. Third, training-epoch overhead from the unified lift is modest ($28.5 \to 33.0$ ms with the deterministic init) because message passing is dominated by dim-0 and dim-1 cells, whose counts are identical across the two lifts.</p>
+
+    <figure>
+      <table>
+        <caption style="caption-side: bottom; padding-top: 0.5rem; font-size: 0.95em; color: rgba(0,0,0,0.6);"><strong>Table 2.</strong> Measured cost of each configuration on Cora. <em>Lift time</em> is one-off preprocessing (building the cell tables and boundary relations). <em>Train epoch</em> is wall-clock time per full-graph training epoch, averaged over 20 epochs after 3 warm-up epochs. <em>Parameters</em> counts learnable parameters in the encoder.</caption>
+        <thead>
+          <tr><th>Configuration</th><th style="text-align: right;">Lift time (s)</th><th style="text-align: right;">Train epoch (ms)</th><th style="text-align: right;">Parameters</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>Path, Deterministic</td><td style="text-align: right;">22.0</td><td style="text-align: right;">28.5</td><td style="text-align: right;">428,544</td></tr>
+          <tr><td>Path, Learnable</td><td style="text-align: right;">22.0</td><td style="text-align: right;">37.5</td><td style="text-align: right;">703,680</td></tr>
+          <tr><td>Unified, Deterministic</td><td style="text-align: right;">62.8</td><td style="text-align: right;">33.0</td><td style="text-align: right;">428,544</td></tr>
+          <tr><td>Unified, Learnable</td><td style="text-align: right;">62.8</td><td style="text-align: right;">43.2</td><td style="text-align: right;">703,680</td></tr>
+        </tbody>
+      </table>
+    </figure>
+
+    <p>Asymptotically, enumerating all simple $k$-paths in a graph on $n$ nodes with branching factor $b$ takes time $\mathcal{O}(n \cdot b^k)$ <d-cite key="michel_expressive_2023,truong_weisfeiler_2024"></d-cite>. Adding the ring extractor raises the bound only by $\mathcal{O}(n \cdot b^L)$ for the maximum ring size $L$, which for small $L$ (e.g. $L = 7$ on Cora) is comparable to the path enumeration at $k = 2$. The learnable init adds $\mathcal{O}(k_\text{max}^2 \cdot d \cdot d_\text{in})$ parameters and does not alter the asymptotic cost of message passing.</p>
+
+    <h3 id="section-4.4">Discussion</h3>
+    <p>Neither of our modifications is expected to close the gap to specialized link-prediction architectures such as SEAL <d-cite key="zhang_link_2018"></d-cite>, NBFNet <d-cite key="zhu_neural_2021"></d-cite>, or a well-tuned VGAE <d-cite key="kipf_variational_2016"></d-cite>—those models exploit properties of the link-prediction problem (subgraph enclosure, Bellman–Ford relational paths, bilinear decoders on structural features) that are largely orthogonal to the topological lift studied here. What the ablation does isolate is the marginal effect, <em>within</em> the PCN family, of (i) learning the lift from data and (ii) admitting multiple cell types simultaneously.</p>
+
+    <p>A natural limitation of the unified complex is duplication: a 3-cycle $ABC$ is now represented both as a ring-cell and as three path-cells $A{\to}B{\to}C$, $B{\to}C{\to}A$, and $C{\to}A{\to}B$. We do not deduplicate, and we expect this to over-weight triangle structure; exploring learnable gating between cell types—so the model can route messages preferentially through path-cells or ring-cells depending on the task—is a promising direction. Separately, the modest gains observed on Cora may reflect the saturation of AUC on a small, dense citation graph; larger benchmarks such as OGBL-COLLAB and OGBL-PPA, where closed-neighborhood structure varies more widely across node pairs, are a natural next target.</p>
+
+    <h2 id="section-5">Related work</h2>
+
+    <p><strong>Higher-order GNNs.</strong> Topological deep learning investigates interactions beyond pair-wise adjacencies and has gained significant attention in recent years <d-cite key="papillon_architectures_2023,hajij_topological_2023"></d-cite>. <d-cite key="bodnar_weisfeiler_2021"></d-cite> introduce MPSN and CWN, message-passing models over simplicial complexes and regular cell complexes, which are provably not less powerful than the 3-WL test. <d-cite key="giusti_cin_2023"></d-cite> extend CWN to CIN++ by incorporating lower-adjacent messages. <d-cite key="truong_weisfeiler_2024"></d-cite> propose PCN, which lifts to path complexes and is proven to generalize CWL($k$-IC) with maximum dimension 2. Our work sits strictly within the PCN family and investigates complementary degrees of freedom that the original paper leaves unused.</p>
+
+    <p><strong>Link prediction with GNNs.</strong> <d-cite key="kipf_variational_2016"></d-cite> introduce the transductive link-prediction protocol on citation networks with the VGAE model. <d-cite key="zhang_link_2018"></d-cite> propose SEAL, which extracts enclosing subgraphs around candidate edges and learns a graph-classification model over them. <d-cite key="zhu_neural_2021"></d-cite> generalize Bellman–Ford to neural relational path aggregation (NBFNet). These approaches exploit properties of the link-prediction problem itself (subgraph enclosure, path counting) rather than the topological richness of the underlying complex, and our contributions are compatible with any of them at the encoder level.</p>
+
+    <p><strong>Path-based graph learning.</strong> <d-cite key="eliasof_pathgcn_2022"></d-cite> (pathGCN) learn spatial operators from randomly sampled paths. <d-cite key="michel_expressive_2023"></d-cite> (PathNN) update node representations based on paths of different lengths. <d-cite key="bouritsas_improving_2021"></d-cite> (GSN) encode nodes or edges by counting the occurrences of sub-structures they belong to. Unlike these methods, which operate on top of the standard graph structure, PCN lifts the graph to a genuinely higher-order object; our extensions retain that advantage while widening the set of topological signals available to the model.</p>
+
+    <p><strong>Learnable lifts.</strong> Most topological GNNs use a fixed, hand-designed lift: cliques of bounded size <d-cite key="bodnar_weisfeiler_2021"></d-cite>, induced cycles up to a cutoff <d-cite key="bodnar_weisfeiler_2022"></d-cite>, or simple paths of bounded length <d-cite key="truong_weisfeiler_2024"></d-cite>. A small number of recent works <d-cite key="hajij_topological_2023"></d-cite> explore lifts that are themselves learned from data; our position-aware initialization can be seen as a minimal instance of this idea, in which the cell type (path vs. ring) is fixed but the mapping from constituent node features to the cell feature is learned.</p>
+
+    <h2 id="section-6">Conclusion</h2>
+    <p>We have introduced two targeted extensions to Path Complex Networks: a position-aware learnable cell initialization that is strictly more expressive than the deterministic scatter-sum, and a unified path&thinsp;+&thinsp;cellular lift that admits path-cells and ring-cells at a common dimension and fuses them through shared edge boundaries. We prove that the resulting unified isomorphism test U-PWL is at least as powerful as both PWL and CWL($k$-IC), and we empirically ablate both modifications on Cora link prediction. Each modification in isolation yields a small improvement in mean test AUC and a noticeable reduction in seed variance, while composing both does not deliver further gains—suggesting that on this benchmark the two degrees of freedom are partially redundant. Future work includes extending the unified complex to admit clique-cells (simplicial) alongside paths and rings, evaluating on larger OGB link-prediction benchmarks, testing whether the position-aware initialization offers benefits for graph-classification tasks on which PCN is already competitive, and introducing learnable gating between cell types so the model can route messages preferentially through path-cells or ring-cells depending on the task.</p>
+
+    <h3>Acknowledgments</h3>
+    <p>We thank the Thayer School of Engineering at Dartmouth College for providing computing resources.</p>
+
+  </d-article>
+
+  <d-appendix>
+
+    <h3 id="app-proofs">Appendix A. Proofs</h3>
+
+    <h4 id="app-proof-learnable">A.1 Proof of Theorem 1</h4>
+    <div class="proof">
+      <span class="proof-name">Proof.</span>
+      Let $G$ be the path graph on three vertices $a, b, c$ with edges $\{a, b\}, \{b, c\}$, and assign node features $x_a = e_1$, $x_b = e_2$, $x_c = e_3$, where $e_1, e_2, e_3$ are the standard basis vectors of $\mathbb{R}^3$. Consider the two elementary 2-paths $\sigma = (a, b, c)$ and $\sigma' = (c, b, a)$, which are equal as multi-sets but opposite as ordered tuples.
+      Under the deterministic init with $\oplus = \text{sum}$, $h_\sigma^{(0)} = x_a + x_b + x_c = e_1 + e_2 + e_3 = h_{\sigma'}^{(0)}$; hence the deterministic init assigns identical features to $\sigma$ and $\sigma'$.
+      Under the learnable init, choose $W_0^{(2)} = A$, $W_1^{(2)} = B$, $W_2^{(2)} = C$ for three matrices $A, B, C$ such that $A e_1 + C e_3 \neq C e_1 + A e_3$ (e.g. $A = I$, $C = 2I$, $B = 0$). Then $h_\sigma^{(0)} = A e_1 + B e_2 + C e_3$ and $h_{\sigma'}^{(0)} = A e_3 + B e_2 + C e_1$, and by construction $h_\sigma^{(0)} \neq h_{\sigma'}^{(0)}$. Hence the learnable init can distinguish $\sigma$ from $\sigma'$, whereas the deterministic init cannot. $\blacksquare$
+    </div>
+
+    <h4 id="app-proof-upwl-pwl">A.2 Proof of Theorem 2</h4>
+    <div class="proof">
+      <span class="proof-name">Proof.</span>
+      The unified complex $\mathcal{C}(G)$ is obtained from the path complex $P(G)$ of <d-cite key="truong_weisfeiler_2024"></d-cite> by adding additional dim-2 cells—the ring-cells in $R(G)$—while keeping all dim-0, dim-1, and dim-$k$ ($k \geq 3$) cells identical. Boundary extraction for path-cells in $\mathcal{C}(G)$ is identical to boundary extraction in $P(G)$, so the boundary relations among path-cells are preserved.
+      Let $c$ be the coloring produced by PWL on $P(G)$ and $d$ the coloring produced by U-PWL on $\mathcal{C}(G)$. Consider two graphs $G_1, G_2$ distinguishable by PWL: there exists a time step $t$ for which the multi-set of colors on $P(G_1)$ differs from that on $P(G_2)$.
+      Consider the restriction of U-PWL to path-cells only: since the $\mathrm{Hash}$ function of U-PWL uses the boundary and upper-adjacency relations, and these relations restricted to path-cells coincide with the PWL relations plus extra upper-adjacencies via shared ring-cells, a simple induction on $t$ shows that $d$ refines $c$. By the corollary on color refinement in <d-cite key="truong_weisfeiler_2024"></d-cite>, $d \sqsubseteq c$ and $c^{G_1} \neq c^{G_2}$ imply $d^{G_1} \neq d^{G_2}$. Hence U-PWL distinguishes $G_1$ from $G_2$ whenever PWL does. $\blacksquare$
+    </div>
+
+    <h4 id="app-proof-upwl-cwl">A.3 Proof of Theorem 3</h4>
+    <div class="proof">
+      <span class="proof-name">Proof.</span>
+      The ring-cells in $R(G)$ are exactly the 2-cells added by CWL($k$-IC) with maximum dimension 2. Boundary extraction for ring-cells in $\mathcal{C}(G)$ uses the CW boundary map, and upper/lower adjacencies among ring-cells and their edge boundaries are identical to those computed by CWL($k$-IC). The additional path-cells do not restrict the set of ring-cell relations—they only add further upper-adjacencies via shared path-cells at dim 2.
+      Let $e$ be the coloring produced by CWL($k$-IC) on the regular cell complex $K(G)$ and $d$ the coloring produced by U-PWL on $\mathcal{C}(G)$. An induction on $t$, analogous to that in A.2, establishes that restricted to ring-cells (and the shared dim-0 and dim-1 cells), $d$ refines $e$. By the color-refinement corollary <d-cite key="bodnar_weisfeiler_2022"></d-cite>, any pair of graphs distinguished by CWL($k$-IC) is also distinguished by U-PWL. $\blacksquare$
+    </div>
+
+    <h3 id="app-formula-mp">Appendix B. Higher-order message-passing formula</h3>
+    <p>The update formula for a PCN (or unified PCN) layer, inherited from <d-cite key="bodnar_weisfeiler_2021,bodnar_weisfeiler_2022,truong_weisfeiler_2024"></d-cite>, is</p>
+    <d-math block>
+      h_\sigma^{(t+1)} = \mathrm{MLP}_{\mathrm{UP}, p}^{(t)}\left( m_\mathcal{B}^{(t)}(\sigma) \,\|\, m_\uparrow^{(t)}(\sigma) \right),
+    </d-math>
+    <d-math block>
+      m_\mathcal{B}^{(t)}(\sigma) = \mathrm{MLP}_{\mathcal{B}, p}^{(t)}\left( (1 + \varepsilon_\mathcal{B}) h_\sigma^{(t)} + \sum_{\tau \in \mathcal{B}(\sigma)} h_\tau^{(t)} \right),
+    </d-math>
+    <d-math block>
+      m_\uparrow^{(t)}(\sigma) = \mathrm{MLP}_{\uparrow, p}^{(t)}\Bigg( (1 + \varepsilon_\uparrow) h_\sigma^{(t)} + \sum_{\tau \in \mathcal{N}_\uparrow(\sigma),\, \delta \in \mathcal{C}(\sigma, \tau)} \mathrm{MLP}_{M, p}^{(t)}\left( h_\tau^{(t)} \,\|\, h_\delta^{(t)} \right) \Bigg),
+    </d-math>
+    <p>where $\sigma$ is a dim-$p$ cell and $\varepsilon_\mathcal{B}, \varepsilon_\uparrow$ are GIN-style learnable scalars <d-cite key="xu_how_2019"></d-cite>. For link prediction, we read out dim-0 (node) features only; for graph classification, we apply a permutation-invariant pool per dimension followed by a <code>Readout</code> across dimensions.</p>
+
+    <h3 id="app-experiments">Appendix C. Experiments: extended details</h3>
+    <p>Our code is based on the public PCN repository <d-cite key="truong_weisfeiler_2024"></d-cite>, which in turn builds on the MPSN <d-cite key="bodnar_weisfeiler_2021"></d-cite> and CWN <d-cite key="bodnar_weisfeiler_2022"></d-cite> implementations. It is powered by PyTorch <d-cite key="paszke_pytorch_2019"></d-cite> and PyTorch Geometric <d-cite key="fey_fast_2019"></d-cite>. Graph lifting is implemented with the help of graph-tool <d-cite key="peixoto_graph-tool_2014"></d-cite> and NetworkX <d-cite key="hagberg_exploring_2008"></d-cite>. All experiments are optimized by Adam <d-cite key="kingma_adam_2015"></d-cite>; we do not use weight decay. Experiments are executed on a workstation with an NVIDIA<sup>&reg;</sup> GeForce<sup>&reg;</sup> RTX<sup>&trade;</sup> GPU.</p>
+
+    <h4>C.1 Dataset statistics</h4>
+    <p>Cora <d-cite key="sen_collective_2008"></d-cite> is a citation network with 2,708 nodes, 5,429 undirected edges, and 1,433-dimensional bag-of-words node features. The average node degree is approximately 4.0, and the graph contains 1,630 triangles. We do not use the node-class labels in any of our experiments; the task is link prediction on the induced graph topology.</p>
+
+    <h4>C.2 Hyperparameter settings</h4>
+    <figure>
+      <table>
+        <caption style="caption-side: bottom; padding-top: 0.5rem; font-size: 0.95em; color: rgba(0,0,0,0.6);"><strong>Table C.1.</strong> Hyperparameter settings for the Cora link-prediction ablations. All four configurations share the same hyperparameters; only the lift (<code>complex_type</code> $\in$ \{<code>path</code>, <code>unified</code>\}) and the initialization (<code>learnable_init</code> flag) differ.</caption>
+        <thead>
+          <tr><th>Parameter</th><th>Cora (all configurations)</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>Batch size</td><td>1 (full-graph)</td></tr>
+          <tr><td>Embedding dimension</td><td>64</td></tr>
+          <tr><td>Number of message-passing layers</td><td>2</td></tr>
+          <tr><td>Maximum lifting dimension</td><td>2</td></tr>
+          <tr><td>Maximum ring size (unified)</td><td>7</td></tr>
+          <tr><td>Dropout rate</td><td>0.3</td></tr>
+          <tr><td>Non-linearity</td><td>ReLU</td></tr>
+          <tr><td>Graph normalization</td><td>batch norm</td></tr>
+          <tr><td>Path-level Readout</td><td>sum</td></tr>
+          <tr><td>Final Readout</td><td>sum</td></tr>
+          <tr><td>Readout dimensions</td><td>$\{0, 1, 2\}$</td></tr>
+          <tr><td>Jumping knowledge</td><td>None</td></tr>
+          <tr><td>Learning rate</td><td>0.01</td></tr>
+          <tr><td>Learning rate scheduler</td><td><code>ReduceLROnPlateau</code></td></tr>
+          <tr><td>Scheduler patience</td><td>20</td></tr>
+          <tr><td>Scheduler decay rate</td><td>0.5</td></tr>
+          <tr><td>Minimum learning rate</td><td>$10^{-5}$</td></tr>
+          <tr><td>Epochs</td><td>200</td></tr>
+          <tr><td>Validation ratio</td><td>0.05</td></tr>
+          <tr><td>Test ratio</td><td>0.10</td></tr>
+          <tr><td>Negative sampling ratio</td><td>1.0</td></tr>
+          <tr><td>Decoder</td><td>dot-product</td></tr>
+          <tr><td>Loss</td><td>binary cross-entropy</td></tr>
+        </tbody>
+      </table>
+    </figure>
+
+    <h4>C.3 Per-seed results</h4>
+    <p>Table C.2 reports the per-seed test AUC of each of the four configurations on Cora. We observe that the variance across seeds is reduced by both the learnable init and the unified lift, which is consistent with the interpretation of each as a mild regularizer that stabilizes training.</p>
+    <figure>
+      <table>
+        <caption style="caption-side: bottom; padding-top: 0.5rem; font-size: 0.95em; color: rgba(0,0,0,0.6);"><strong>Table C.2.</strong> Per-seed test AUC on Cora. P = path lift; U = unified path&thinsp;+&thinsp;cellular lift; Det = deterministic init; Learn = learnable init.</caption>
+        <thead>
+          <tr><th>Seed</th><th>P, Det</th><th>P, Learn</th><th>U, Det</th><th>U, Learn</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>0</td><td>0.7195</td><td>0.7192</td><td>0.7129</td><td>0.7067</td></tr>
+          <tr><td>1</td><td>0.7081</td><td>0.7329</td><td>0.7141</td><td>0.7146</td></tr>
+          <tr><td>2</td><td>0.7373</td><td>0.7066</td><td>0.7289</td><td>0.6935</td></tr>
+          <tr><td>3</td><td>0.7501</td><td>0.7268</td><td>0.7350</td><td>0.7341</td></tr>
+          <tr><td>4</td><td>0.7063</td><td>0.6864</td><td>0.7154</td><td>0.6860</td></tr>
+          <tr><td>5</td><td>0.7039</td><td>0.7333</td><td>0.7169</td><td>0.7436</td></tr>
+          <tr><td>6</td><td>0.6637</td><td>0.6941</td><td>0.6790</td><td>0.7069</td></tr>
+          <tr><td>7</td><td>0.7254</td><td>0.7001</td><td>0.7236</td><td>0.6980</td></tr>
+          <tr><td>8</td><td>0.7051</td><td>0.7044</td><td>0.7139</td><td>0.7133</td></tr>
+          <tr><td>9</td><td>0.6937</td><td>0.7193</td><td>0.6927</td><td>0.7141</td></tr>
+          <tr><td><strong>Mean</strong></td><td>0.7113</td><td>0.7123</td><td>0.7132</td><td>0.7111</td></tr>
+          <tr><td><strong>Std</strong></td><td>0.0239</td><td>0.0164</td><td>0.0165</td><td>0.0175</td></tr>
+        </tbody>
+      </table>
+    </figure>
+
+    <h4>C.4 Implementation notes</h4>
+    <p>The learnable position-aware initialization is implemented in <code>lib/layers/learnable_features.py</code> as the <code>LearnablePathFeatureInit</code> module. Given the two tensors already produced by the path-complex builder—<code>cell_node_index</code> of shape $[2, N]$ (node identifier, cell identifier pairs) and <code>cell_position_index</code> of shape $[N]$ (position of the node within the cell)—we loop over positions $i = 0, \ldots, k_\text{max}$, mask the entries whose position equals $i$, apply the position-specific linear map $W_i^{(k)}$ to the corresponding node features, and accumulate the result into the cell feature buffer via <code>index_add_</code>. This preserves the linear asymptotic cost of the deterministic init while introducing exactly $(k_\text{max} + 1)$ additional parameter matrices per dimension.</p>
+    <p>The unified complex is constructed by computing $P_k(G)$ and $R(G)$ separately with the existing path-enumeration and ring-extraction routines, canonicalizing edges to sorted tuples, and concatenating the cell tables at dim 2. Boundary extraction then branches on a per-cell flag that records whether the cell originated from the path enumerator or the ring extractor; downstream, upper/lower adjacencies are computed on the union boundary table without further modification. The combined lift is cached to disk so that the cost is paid once per dataset.</p>
+
+    <h3>Reproducibility</h3>
+    <p>Code, configuration files, and per-seed logs are available at the project repository linked above. We use Weights &amp; Biases <d-cite key="wandb"></d-cite> to track experiments and to perform hyperparameter searches.</p>
+
+    <d-bibliography src="bibliography.bib"></d-bibliography>
+  </d-appendix>
+
+</body>
+
+</html>

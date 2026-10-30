@@ -1,0 +1,20 @@
+---
+import Base from "../layouts/Base.astro";
+import Masthead from "../components/Masthead.astro";
+import Archive from "../components/Archive.astro";
+import Foot from "../components/Foot.astro";
+import { ENTRIES, YEAR_MIN, YEAR_MAX } from "../lib/data";
+---
+
+<Base title="Putnam Practice">
+  <Masthead
+    stats={[
+      `${ENTRIES.length} problems`,
+      `${YEAR_MIN}–${YEAR_MAX}`,
+      "8 subjects",
+      "rated 1–10",
+    ]}
+  />
+  <Archive entries={ENTRIES} />
+  <Foot />
+</Base>

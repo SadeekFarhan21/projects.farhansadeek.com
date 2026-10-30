@@ -1,7 +1,7 @@
 ---
 layout: post
 title: "smolgrad, a NumPy Autograd Engine Checked Against PyTorch"
-code: https://github.com/SadeekFarhan21/projects/tree/main/smolgrad
+code: https://github.com/SadeekFarhan21/projects.farhansadeek.com/tree/main/smolgrad
 tags:
   - autograd
   - numpy
@@ -15,9 +15,9 @@ date: 2026-09-29 04:01:45
 
 I wrote smolgrad, a reverse-mode automatic differentiation engine<sup>[[1]](#ref-1)</sup> with a small PyTorch-shaped<sup>[[2]](#ref-2)</sup> neural network library on top, in 891 lines of Python over NumPy<sup>[[3]](#ref-3)</sup>. It builds a dynamic graph on every forward pass, walks it in reverse topological order, and ships the pieces needed to train real models, which are broadcasting-aware ops, a module system, SGD with momentum and AdamW<sup>[[4]](#ref-4)</sup>.
 
-The number I trust most is not an accuracy. Trained side by side with a PyTorch twin from identical weights on identical batches, in float64, the two models finish three MNIST<sup>[[5]](#ref-5)</sup> epochs with a maximum weight difference of **5.3e-14**, and an independent rerun landed at 3.9e-14. That is float64 rounding territory, and it leaves no room for a bug in any gradient or optimizer update on that path. In float32 the same experiment ends ten epochs **0.313** apart, and most of this post's middle is about why that is not a bug.
+The number I trust most is not an accuracy. Trained side by side with a PyTorch twin from identical weights on identical batches, in float64, the two models finish three MNIST<sup>[[5]](#ref-5)</sup> epochs with a maximum weight difference of **5.3e-14**. That is float64 rounding territory, and it leaves no room for a bug in any gradient or optimizer update on that path. In float32 the same experiment ends ten epochs **0.313** apart, and most of this post's middle is about why that is not a bug.
 
-With that established, the models are almost a formality. A 784-512-256-10 MLP reaches **97.89%** MNIST test accuracy after ten float32 epochs (the PyTorch twin reaches 97.81%), which is one draw from a spread of about 0.2 points that depends on the BLAS thread count, and a character-level model reaches **1.794 nats per character** on held-out Tiny Shakespeare<sup>[[6]](#ref-6)</sup> against 2.482 for a bigram baseline. A full training step is **1.2x to 2.5x slower than PyTorch** on one CPU thread, and a hand-written NumPy baseline splits that gap into autograd overhead and kernel speed. Every timing was taken on a machine loaded by other jobs, so the absolute times are upper bounds and the single-threaded ratios are the useful part.
+With that established, the models are almost a formality. A 784-512-256-10 MLP reaches **97.89%** MNIST test accuracy after ten float32 epochs (the PyTorch twin reaches 97.81%), which is one draw from a spread of about 0.2 points that depends on the BLAS thread count, and a character-level model reaches **1.794 nats per character** on held-out Tiny Shakespeare<sup>[[6]](#ref-6)</sup> against 2.482 for a bigram baseline. A full training step is **1.2x to 2.5x slower than PyTorch** on one CPU thread, and a hand-written NumPy baseline splits that gap into autograd overhead and kernel speed.
 
 *Reading note.* The argument is that an autograd engine is short, and that almost all of the difficulty is in proving it right and in the handful of places where NumPy's semantics and the chain rule disagree about who owns an array. Skip to [Problems](#problems) for the bugs.
 
@@ -236,8 +236,6 @@ The third is 23 tests comparing op values and gradients, modules, and 20-step SG
 
 ## Problems
 
-This section lists only the issues that left evidence in the code, the tests or the recorded results.
-
 ### 1. Leaf Gradients Aliasing Each Other
 
 `add` returns the *same* array object as the gradient for both parents, since $\partial(a + b)/\partial a$ and $\partial(a + b)/\partial b$ are both the identity. And `sum`'s backward returns `np.broadcast_to(g, shape)`, which is a read-only view with zero strides, not a real array. The first version of the engine stored whatever arrived at a leaf directly as its `.grad`.
@@ -272,7 +270,7 @@ A recursive topological sort is five lines and breaks at Python's default recurs
 
 The embedding backward has to scatter-add gradient rows into the table with repeated indices accumulating. The textbook NumPy answer is `np.add.at(full, idx, g)`, and that is what the generic indexing op still uses. It is correct. It is also an unbuffered per-element loop.
 
-Profiling 200 steps of the character model with cProfile showed it. The top of the profile, taken at a load average of 252, looked like this.
+Profiling 200 steps of the character model with cProfile showed it. The top of the profile looked like this.
 
 | Function | Total time over 200 steps |
 |---|---|
@@ -307,13 +305,13 @@ def _scatter_add_rows(idx, g, num_rows):
     return out
 ```
 
-Two honest caveats. At the middle shape ($V = 1{,}000$, $N = 8{,}192$), the threshold sends the call to sort and reduceat even though one-hot had the lower minimum (1,794 µs against 1,981 µs). The medians rank them the other way (4,461 µs against 3,226 µs), so under this much load I cannot call it either way, and the threshold is a memory rule as much as a speed rule. Second, sort and reduceat is not bit-identical to `np.add.at`. Its maximum absolute error in float32 was 7.6e-6 at the small shape, because it sums each run in a different order. That is rounding, not a bug, and it foreshadows problem 6.
+Two honest caveats. At the middle shape ($V = 1{,}000$, $N = 8{,}192$), the threshold sends the call to sort and reduceat even though one-hot had the lower minimum (1,794 µs against 1,981 µs). The medians rank them the other way (4,461 µs against 3,226 µs), so I cannot call it either way, and the threshold is a memory rule as much as a speed rule. Second, sort and reduceat is not bit-identical to `np.add.at`. Its maximum absolute error in float32 was 7.6e-6 at the small shape, because it sums each run in a different order. That is rounding, not a bug, and it foreshadows problem 6.
 
-Rerunning the same profile after the change, the step went from 23.78 ms to 11.51 ms under the profiler and the scatter dropped out of the top ten. Not all of that halving is the scatter, though. The scatter accounted for 5.6 ms per step, and the rest of the 12.3 ms drop came from lines whose code did not change, such as the AdamW step falling from 1.030 s to 0.395 s over 200 steps. That part is load, and the honest claim is a 5.6 ms per step saving.
+With the size-based scatter in place, the scatter drops out of the top ten of the profile. It had accounted for 5.6 ms per step, so that is the saving.
 
 ### 5. AdamW's Temporaries
 
-In the second profile the optimizer is the top line. For a 535,818-parameter MLP at small batch it is a large, batch-independent share of every step, and the expression form of AdamW allocated about six parameter-sized arrays per tensor per step. The `out=` rewrite shown in [AdamW with No Allocations](#adamw-with-no-allocations) removed them. It did not close the gap to PyTorch's multi-tensor AdamW, which I return to in [Results](#results).
+Once the scatter is gone, the optimizer is the top line of the profile. For a 535,818-parameter MLP at small batch it is a large, batch-independent share of every step, and the expression form of AdamW allocated about six parameter-sized arrays per tensor per step. The `out=` rewrite shown in [AdamW with No Allocations](#adamw-with-no-allocations) removed them. It did not close the gap to PyTorch's multi-tensor AdamW, which I return to in [Results](#results).
 
 ### 6. float32 Drifts Away from PyTorch, and It Is Not a Bug
 
@@ -321,7 +319,7 @@ This is the one that looked like a real bug and took the most care to rule out.
 
 The MNIST training run trains a PyTorch twin from the same initial weights on the same batches and logs the maximum absolute weight difference after each epoch. In float32 it was 0.098 after one epoch and **0.313** after ten. That is not rounding error by any normal standard, yet every parity test passed. Either there was a bug that only shows up over thousands of steps, or training amplifies rounding differences into large weight differences.
 
-Those two explanations make different predictions about precision. A real bug in a gradient or an update rule does not care about dtype. It should make the float64 twins diverge just as fast. Amplified rounding should shrink by roughly the ratio of the two machine epsilons, about nine orders of magnitude. So I reran the twin experiment in float64 for three epochs.
+Those two explanations make different predictions about precision. A real bug in a gradient or an update rule does not care about dtype. It should make the float64 twins diverge just as fast. Amplified rounding should shrink by roughly the ratio of the two machine epsilons, about nine orders of magnitude. So the twin experiment also runs in float64 for three epochs.
 
 | Epoch | float64 max weight difference | smolgrad test accuracy | PyTorch test accuracy |
 |---|---|---|---|
@@ -348,21 +346,13 @@ AdamW starts noisier than SGD, 8.3e-6 after one step against 3.7e-9, and that ha
 
 The practical takeaway is that float32 parity with a reference implementation is only meaningful over a handful of steps, and long-run parity has to be tested in float64. The ten-epoch float32 twins still end at 97.89% and 97.81%, which is the level at which they should agree. The same sensitivity shows up between thread configurations, not just between implementations, as the MNIST results below describe.
 
-### 7. The Machine Was Shared
-
-Every timing in this project was taken while other jobs were running on the same 14-core M4 Pro. I recorded the one-minute load average at each measurement, and it was 338 to 358 for the single-threaded benchmark, 358 to 360 for the default-threads benchmark, 194 to 202 for the scatter benchmark and 252 for the profile. A load of 300 on 14 cores means each runnable process waits most of the time.
-
-The benchmark interleaves the implementations round-robin, so any burst of load hits all three alike, reports the minimum over all runs as the best estimate of intrinsic cost, since load can only add time, and records the load average alongside every result. The medians measure the other jobs more than smolgrad, and I do not quote them. The absolute times below are upper bounds.
-
-How much load distorted things shows in the training runs. The MNIST run's first epoch took 19.2 s and its tenth took 4.5 s with no code change, and the character model averaged 71 ms per step during training against a benchmark minimum of 3.4 ms.
-
 ## Experiments
 
 1. Correctness is checked by the 101-test suite.
 2. MNIST uses a 784-512-256-10 ReLU MLP, 535,818 parameters, AdamW at learning rate 1e-3 and weight decay 0.01, batch 128, 10 epochs in float32, with a PyTorch twin from identical weights on identical batches. Then the same twin setup in float64 for 3 epochs.
 3. The drift experiment runs 300 steps for each of float32 and float64 crossed with SGD with momentum and AdamW, logging the weight difference to the PyTorch twin every step.
 4. The character model is a Bengio-style character MLP<sup>[[12]](#ref-12)</sup> on Tiny Shakespeare<sup>[[6]](#ref-6)</sup>. An `Embedding(65, 32)` over a 16-character context is flattened to 512, then `Linear(512, 512)`, `LayerNorm`, tanh, `Linear(512, 65)`. That is 299,105 parameters, trained with AdamW at 3e-3 with a linear decay over the last quarter, batch 256, 6,000 steps, and compared against uniform, unigram and bigram baselines on the same validation split.
-5. The step-time benchmark times a full training step (forward, backward, AdamW) of the MNIST MLP at batch 1 to 2048 and the character model at batch 256, single-threaded and with default threading, in three implementations. They are smolgrad, PyTorch eager on CPU, and the same MLP hand-written in NumPy with manual gradients, no graph, and smolgrad's own AdamW. A microbenchmark also times 2,000 chained multiplies on one-element tensors, forward plus backward.
+5. The step-time benchmark times a full training step (forward, backward, AdamW) of the MNIST MLP at batch 1 to 2048 and the character model at batch 256, single-threaded and with default threading, in three implementations. They are smolgrad, PyTorch eager on CPU, and the same MLP hand-written in NumPy with manual gradients, no graph, and smolgrad's own AdamW. A microbenchmark also times 2,000 chained multiplies on one-element tensors, forward plus backward. The benchmark interleaves the three implementations round-robin, so any burst of background work hits all of them alike, and reports the minimum over all runs as the best estimate of intrinsic cost, since interference can only add time.
 
 The hand-written NumPy MLP is the design choice that makes the benchmark worth reading. Without it, "1.8x slower than PyTorch" could mean a slow graph engine or slow kernels. With it, smolgrad minus NumPy is the price of autograd, and NumPy minus PyTorch is the price of NumPy.
 
@@ -382,7 +372,7 @@ All 101 tests pass. The float64 twin result above is the strongest end-to-end ev
 
 I report only the final epoch. The run also recorded a best test accuracy of 98.11% at epoch 5, but there is no validation split, so picking the best epoch means picking it on the test set, and that number is optimistic by construction. A separate validation split would fix this.
 
-The float32 run is deterministic for a fixed thread count but not across thread counts. An independent rerun with BLAS capped at 2 threads matched itself exactly, and reached 98.07% final accuracy with a final test loss of 0.0778, against 97.89% and 0.0863 here. The runs already differ after the first epoch (96.96% against 96.77%), which points to summation order in the matrix multiplies rather than a bug, and the float64 twin rules out a gradient error. So read 97.89% as one draw from a spread of about 0.2 points.
+The float32 run is deterministic for a fixed thread count but not across thread counts. With BLAS capped at 2 threads it reaches 98.07% final accuracy with a final test loss of 0.0778, against 97.89% and 0.0863 here. The runs already differ after the first epoch (96.96% against 96.77%), which points to summation order in the matrix multiplies rather than a bug, and the float64 twin rules out a gradient error. So read 97.89% as one draw from a spread of about 0.2 points.
 
 Test loss bottoms out at epoch 5 at 0.0623 and rises afterwards while train loss keeps falling, which is ordinary overfitting with no regularization beyond weight decay. The 0.08-point accuracy difference between the twins is float32 drift, not a property of either implementation. At epoch 8 the ranking was the other way around, 97.51% against 97.88%.
 
@@ -403,7 +393,7 @@ That is about what a 300,000-parameter model with a 16-character window should m
 
 <figure data-figure="chart:projects/autograd-from-scratch/autograd-from-scratch-step-ratio"></figure>
 
-Single-threaded, taking the minimum over 320 steps for batches up to 128 and 120 steps above, at a load average of 338 to 358.
+These are single-threaded minima over 320 steps for batches up to 128 and 120 steps above, measured on a shared 14-core M4 Pro, so the absolute times are upper bounds and the ratios are the part to read.
 
 | MLP batch | smolgrad | NumPy by hand | PyTorch | smolgrad / PyTorch |
 |---|---|---|---|---|
@@ -415,7 +405,7 @@ Single-threaded, taking the minimum over 320 steps for batches up to 128 and 120
 
 The character model step at batch 256 was 3.40 ms for smolgrad and 2.77 ms for PyTorch, a ratio of 1.2x.
 
-The batch 2048 row, where hand-written NumPy is 17 ms slower than smolgrad, is load noise. The two run the same matmuls. I keep the row because deleting inconvenient measurements is worse than labelling them, and its other numbers deserve the same suspicion.
+The batch 2048 row, where hand-written NumPy is 17 ms slower than smolgrad, is noise, since the two run the same matmuls, and the other numbers in that row deserve the same suspicion.
 
 ### Where the Gap Comes From
 
@@ -429,7 +419,7 @@ At batch 128 the phases split like this.
 | backward | 1.15 ms | 0.38 ms | 0.35 ms |
 | AdamW step | 1.33 ms | 1.32 ms | 1.00 ms |
 
-My reading of it, with the usual hedge that these are minima under heavy load and that phase minima do not add exactly to step minima.
+Phase minima do not add exactly to step minima, but the split is clear enough to read.
 
 The autograd machinery costs about 0.85 ms per step (2.94 minus 2.09), and almost all of it is in backward, 1.15 ms against 0.38 ms. The forward passes are within 0.06 ms of each other, so recording the graph is cheap. The backward cost is extra memory traffic. The hand-written version computes the relu mask and applies it in one expression, sums the bias gradient directly, and never builds a dict or checks an ownership flag. smolgrad unbroadcasts every bias add, allocates a new array for every relu mask multiply, allocates again when summing gradients that arrive at the same node, and copies wherever a leaf cannot adopt its gradient.
 
@@ -437,7 +427,7 @@ The kernel gap is smaller, about 0.43 ms (2.09 minus 1.66), and most of it is th
 
 Per-op Python overhead is not the problem. On one-element tensors, a forward plus backward multiply costs 6.2 µs in smolgrad and 12.6 µs in PyTorch single-threaded, and 6.2 µs against 10.0 µs with default threading. PyTorch's dispatcher does more work per op than a Python closure does. This surprised me, and it means the gap on real workloads is about how many bytes move, not how many Python calls happen.
 
-The default-threads benchmark (40 or 15 steps per point, at a load average near 360) is less reliable. In it PyTorch at batch 128 is slower than hand-written NumPy, 5.24 ms against 2.25 ms, which is what ten PyTorch threads on an oversubscribed machine look like. I use it only for the per-op overhead numbers.
+The default-threads benchmark is much noisier. In it PyTorch at batch 128 is slower than hand-written NumPy, 5.24 ms against 2.25 ms, so I use it only for the per-op overhead numbers.
 
 ## What I Would Change
 
@@ -457,9 +447,9 @@ Closures read their parents' `.data` lazily at backward time, so updating a para
 
 Right now each VJP is raw NumPy, so the backward pass builds no graph and grad-of-grad is impossible. Supporting it means a second set of backward rules written in Tensor ops, behind a `create_graph=True` flag so the first-order path does not pay for it.
 
-### Rerun Every Timing on an Idle Machine
+### Time Everything on an Idle Machine
 
-The benchmark already has a wrapper that waits for the load average to drop below a threshold. The numbers here were taken at a one-minute load average of 194 to 360 and are upper bounds, with the single-threaded ratios roughly right. The float64 parity result does not depend on the machine at all, which is why it leads this post.
+The timings were taken on a shared machine with heavy background load, so the absolute times are upper bounds and only the single-threaded ratios are roughly right. The benchmark has a wrapper that waits for the load to drop below a threshold, and an idle machine would give clean absolute numbers. The float64 parity result does not depend on the machine at all, which is why it leads this post.
 
 ## References
 

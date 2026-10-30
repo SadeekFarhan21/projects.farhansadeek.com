@@ -1,0 +1,53 @@
+// https://codeforces.com/problemset/problem/986/A
+#include <bits/stdc++.h>
+using namespace std;
+#define int long long
+#define double long double
+const int N = 50;
+char grid[N + 1][N + 1];
+bool visited[N + 1][N + 1];
+int x_direction[] = {1, -1, 0, 0};
+int y_direction[] = {0, 0, 1, -1};
+bool hasCycle = false;
+void dfs(int x, int y, int parent_x, int parent_y, int n, int m, int color) {
+    if (hasCycle)
+        return;
+    visited[x][y] = true;
+    for (int i = 0; i < 4; i++) {
+        int new_x = x + x_direction[i];
+        int new_y = y + y_direction[i];
+        if (new_x >= 0 && new_x < n && new_y >= 0 && new_y < m) {
+            if (grid[new_x][new_y] == color) {
+                if (visited[new_x][new_y]) {
+                    if (new_x != parent_x || new_y != parent_y) {
+                        hasCycle = true;
+                        return;
+                    }
+                } else {
+                    dfs(new_x, new_y, x, y, n, m, color);
+                }
+            }
+        }
+    }
+}
+int32_t main() {
+    int n, m;
+    cin >> n >> m;
+    for (int i = 0; i < n; i++) {
+        for (int j = 0; j < m; j++) {
+            cin >> grid[i][j];
+            visited[i][j] = false;
+        }
+    }
+
+    for (int i = 0; i < n; i++) {
+        for (int j = 0; j < m; j++) {
+            if (!visited[i][j]) {
+                dfs(i, j, -1, -1, n, m, grid[i][j]);
+            }
+        }
+    }
+    cout << (hasCycle ? "Yes" : "No") << "\n";
+    return 0;
+}
+// https://codeforces.com/problemset/problem/986/A

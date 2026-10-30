@@ -2,7 +2,7 @@
 layout: post
 title: "Erasing Artists From Stable Diffusion at Right Angles"
 tab_title: Concept Erasure
-code: https://github.com/SadeekFarhan21/projects/tree/main/cure-improve
+code: https://github.com/SadeekFarhan21/projects.farhansadeek.com/tree/main/cure-improve
 date: 2026-02-27 13:48:53
 tags:
   - diffusion
@@ -22,7 +22,7 @@ On Stable Diffusion v1.4<sup>[[2]](#ref-2)</sup>, with 3 seeds at 384 px, the ba
 
 Concept erasure is for the case where a model has to stop producing something. CURE erases a concept in about two seconds with no gradient steps, which makes it attractive for the "erase a hundred artists" setting. That is also where it degrades. The CURE paper's Figure 6 shows perceptual divergence starting around 50 erasures and stronger interference on untargeted prompts beyond about 100. The question for this project was whether that failure can be fixed without training anything.
 
-The work was split. Arses Prasai built the implementation, which includes a reimplementation of CURE for SD v1.4 (`cure/`, not the authors' code), the sequential variant (`cure_seq/`), a port of the same idea to SD3's MM-DiT architecture (`cure_dit/`), and a shared evaluation harness (`evaluation/`) that scores every method the same way. He also ran the quick-proof benchmark. Jeffrey Xie ran the Figure-6-style sweeps behind the main results. My part is the analysis in this post and two small weight-free scripts, written with AI help. One recomputes the method gaps from the committed results, and the other checks the linear algebra on synthetic data.
+The work was split. Arses Prasai built the implementation, which includes a reimplementation of CURE for SD v1.4 (not the authors' code), the sequential variant, a port of the same idea to SD3's MM-DiT architecture, and a shared evaluation harness that scores every method the same way. He also ran the quick-proof benchmark. Jeffrey Xie ran the Figure-6-style sweeps behind the main results. My part is the analysis of the method gaps and a synthetic check of the linear algebra.
 
 ## Technical Details
 
@@ -38,7 +38,7 @@ $$
 W' = W - W P
 $$
 
-The function $f$ is a Tikhonov-style spectral expansion. It maps each direction's energy share $r_i$ to a weight in $[0, 1]$, so dominant directions are removed almost fully and weak ones barely at all. The repo also supports a Gavish-Donoho hard threshold<sup>[[3]](#ref-3)</sup> that keeps directions above a noise cutoff. In that mode the weight is a hard 0 or 1, so $\alpha$ plays no part. When retain prompts are given, the discriminative projector is $P_{dis} = P_f - P_f P_r$, which stops the edit from removing directions that a concept to keep also uses.
+The function $f$ is a Tikhonov-style spectral expansion. It maps each direction's energy share $r_i$ to a weight in $[0, 1]$, so dominant directions are removed almost fully and weak ones barely at all. The implementation also supports a Gavish-Donoho hard threshold<sup>[[3]](#ref-3)</sup> that keeps directions above a noise cutoff. In that mode the weight is a hard 0 or 1, so $\alpha$ plays no part. When retain prompts are given, the discriminative projector is $P_{dis} = P_f - P_f P_r$, which stops the edit from removing directions that a concept to keep also uses.
 
 ### Why Sequential Edits Interfere
 
@@ -64,19 +64,19 @@ The price is a finite budget. Every concept spends dimensions no later concept c
 
 <figure class="excal" data-diagram="cure-improve-architecture"><a href="/img/diagrams/cure-improve-architecture.webp" class="excal-link" aria-label="Open the diagram full size"><img src="/img/diagrams/cure-improve-architecture.webp" alt="Layout of the CURE-Improve repo: concept prompts become CLIP text embeddings of shape n by 768 and feed cure/ (the base CURE reimplementation editing attn2 to_k and to_v), cure_seq/ (a SubspaceBank with orthogonal projectors that imports from cure/) and cure_dit/ (targeting SD3 MM-DiT), all of which feed evaluation/ with one results.json schema computing LPIPS_e, LPIPS_u and CLIP_u, with labels crediting the packages and protocol to Arses Prasai and the Figure-6 sweeps to Jeffrey Xie." width="2400" height="1887" loading="lazy" decoding="async"></a></figure>
 
-### How the Repo Fits Together
+### How the Pieces Fit Together
 
-`cure/` holds the base eraser and the attention utilities that find and edit the `attn2` layers. `cure_seq/` imports those utilities and adds the `SubspaceBank`, a spectral module that computes orthogonalized projectors, and a `SequentialCURE` class. `cure_dit/` reuses the spectral idea for SD3. `evaluation/` runs any of them under one config and one `results.json` schema and computes the Figure-6 metrics. By line count that is about 2,100 lines for the base method, 1,300 for CURE-Sequential including experiments, 650 for CURE-DiT and 2,900 for evaluation.
+The base eraser holds the attention utilities that find and edit the `attn2` layers. CURE-Sequential imports those utilities and adds the `SubspaceBank`, a spectral module that computes orthogonalized projectors, and a `SequentialCURE` class. CURE-DiT reuses the spectral idea for SD3. The evaluation harness runs any of them under one config and one results schema and computes the Figure-6 metrics. By line count that is about 2,100 lines for the base method, 1,300 for CURE-Sequential including experiments, 650 for CURE-DiT and 2,900 for evaluation.
 
 <figure class="excal" data-diagram="cure-improve-subspace-bank"><a href="/img/diagrams/cure-improve-subspace-bank.webp" class="excal-link" aria-label="Open the diagram full size"><img src="/img/diagrams/cure-improve-subspace-bank.webp" alt="Flow of one sequential erasure in CURE-Sequential: forget prompts become CLIP embeddings and an SVD gives right singular vectors, an orthogonalize step against the SubspaceBank B and QR feed an adaptive alpha and the projector P, the weights are edited as W minus W P on to_k and to_v, and new directions with spectral weight above 0.01 are registered back into the bank, which lives in the 768-dimensional CLIP space so its capacity is bounded." width="2400" height="3111" loading="lazy" decoding="async"></a></figure>
 
 ### The DiT Port
 
-SD3 has no cross-attention. Text and image tokens attend jointly, and the text stream has its own key and value projections. `cure_dit` applies the same edit to those, `add_k_proj` and `add_v_proj`, in each joint transformer block, in a 1152-dimensional context space, in float32 before casting back<sup>[[4]](#ref-4)</sup>. Every number in this post comes from SD v1.4.
+SD3 has no cross-attention. Text and image tokens attend jointly, and the text stream has its own key and value projections. `cure_dit` applies the same edit to those, `add_k_proj` and `add_v_proj`, in each joint transformer block, in a 1152-dimensional context space, in float32 before casting back<sup>[[4]](#ref-4)</sup>. All the results below are on SD v1.4.
 
 ### The Metrics
 
-`paper_figure6_metrics.py` computes three numbers per checkpoint. LPIPS<sub>e</sub><sup>[[5]](#ref-5)</sup> is the perceptual distance from the unedited model on erased artists, and higher means stronger removal. LPIPS<sub>u</sub> is the same distance on unerased artists, and lower means less collateral damage. CLIP<sub>u</sub><sup>[[6]](#ref-6)</sup> is text-image alignment on unerased prompts, and higher is better. `run_shared_eval.py` writes one schema for all three methods, so every comparison below is like for like.
+The evaluation computes three numbers per checkpoint. LPIPS<sub>e</sub><sup>[[5]](#ref-5)</sup> is the perceptual distance from the unedited model on erased artists, and higher means stronger removal. LPIPS<sub>u</sub> is the same distance on unerased artists, and lower means less collateral damage. CLIP<sub>u</sub><sup>[[6]](#ref-6)</sup> is text-image alignment on unerased prompts, and higher is better. All three methods go through the same evaluation and output schema, so every comparison below is like for like.
 
 ## Implementation
 
@@ -140,11 +140,11 @@ Projecting a concept off the bank throws away whatever energy it shared with ear
 
 ## Experiments
 
-I ran no image generation. Everything that needs Stable Diffusion weights, a GPU and the LPIPS and CLIP models is Jeffrey's and Arses's output, and I recomputed only differences between numbers already in their results. Three sources feed this post.
+There are three experiments.
 
-1. **Figure-6-style sweeps (Jeffrey Xie).** SD v1.4, CURE against CURE-Sequential, seeds 11, 22 and 33, 20 sampling steps, guidance 7.5, 384 by 384 pixels, alpha 2.0, Tikhonov spectral mode, masked-mean embeddings. A 50-artist run on 2026-03-07 with checkpoints at k = 1, 5, 10, 25, 50, and a 100-artist extension on 2026-03-08 adding k = 100. The k = 1 to 50 checkpoints match between the two runs.
-2. **Quick-proof benchmark (Arses Prasai).** Nine unique runs summarized on 2026-03-06, using a fast CLIP-based proxy with a "target" score (lower means better suppression) and a "drop" score (lower means better retention).
-3. **A synthetic orthogonality check (mine, CPU, seconds).** Random low-rank concepts in 768 dimensions with no model in the loop. It tests only the linear algebra.
+1. **Figure-6-style sweeps (Jeffrey Xie).** SD v1.4, CURE against CURE-Sequential, seeds 11, 22 and 33, 20 sampling steps, guidance 7.5, 384 by 384 pixels, alpha 2.0, Tikhonov spectral mode, masked-mean embeddings. A 50-artist run with checkpoints at k = 1, 5, 10, 25, 50, and a 100-artist extension adding k = 100. The k = 1 to 50 checkpoints match between the two runs.
+2. **Quick-proof benchmark (Arses Prasai).** Nine unique runs using a fast CLIP-based proxy with a "target" score (lower means better suppression) and a "drop" score (lower means better retention).
+3. **A synthetic orthogonality check (mine).** Random low-rank concepts in 768 dimensions with no model in the loop. It tests only the linear algebra.
 
 This is a fast setting, not a full benchmark. Three seeds, 20 steps and 384 pixels keep the sweeps cheap, and LPIPS at this scale is a proxy for what a user would call damage. Standard deviations are about 0.06 to 0.10 for LPIPS<sub>u</sub> (the largest, 0.098, is CURE-Sequential at k=100) and about 3 for CLIP<sub>u</sub>.
 
@@ -154,7 +154,7 @@ This is a fast setting, not a full benchmark. Three seeds, 20 steps and 384 pixe
 
 <figure data-figure="chart:projects/cure-improve/cure-improve-lpips-u"></figure>
 
-Differences, CURE-Sequential minus CURE, recomputed from Jeffrey's `results.json` by `results/figure6_deltas.py`.
+Differences, CURE-Sequential minus CURE, from Jeffrey's sweeps.
 
 | k | dLPIPS<sub>u</sub> (lower is better) | dCLIP<sub>u</sub> (higher is better) | dLPIPS<sub>e</sub> |
 |---:|---:|---:|---:|
@@ -175,11 +175,11 @@ LPIPS<sub>u</sub> is already 0.709 at k=1 for both methods, so the baseline drif
 
 ### Quick-Proof Benchmark
 
-**Across the nine summarized runs, the picture is mixed.** CURE-Sequential wins on both target and drop in the five Gavish-Donoho forward runs. Four of those are the same run in effect. The 20-concept forward runs at alpha 1.5, 2.0, 2.5 and 3.0 give identical numbers (target 26.7340 for CURE and 24.8841 for CURE-Sequential in all four), because the Gavish-Donoho threshold ignores alpha. In the reverse-order Gavish-Donoho run `gd_reverse_20c_v2`, CURE-Sequential has better retention (drop 1.4540 against 4.2923) and worse suppression (target 26.1652 against 24.3610). In the Tikhonov runs, `tikhonov_forward` favors CURE-Sequential on retention, and `tikhonov_reverse` gives it slightly better suppression and worse retention (drop 4.7717 against 3.5260). **Erasure order matters in the reverse runs.** Nine runs of 3 to 5 seeds each don't support more than that.
+**Across the nine runs, the picture is mixed.** CURE-Sequential wins on both target and drop in the five Gavish-Donoho forward runs. Four of those are the same run in effect. The 20-concept forward runs at alpha 1.5, 2.0, 2.5 and 3.0 give identical numbers (target 26.7340 for CURE and 24.8841 for CURE-Sequential in all four), because the Gavish-Donoho threshold ignores alpha. In the reverse-order 20-concept Gavish-Donoho run, CURE-Sequential has better retention (drop 1.4540 against 4.2923) and worse suppression (target 26.1652 against 24.3610). In the Tikhonov runs, forward order favors CURE-Sequential on retention, and reverse order gives it slightly better suppression and worse retention (drop 4.7717 against 3.5260). **Erasure order matters in the reverse runs.** Nine runs of 3 to 5 seeds each don't support more than that.
 
 ### The Linear Algebra Holds
 
-The synthetic check builds random rank-8 concepts in 768 dimensions with 40 samples each and compares the projectors' pairwise products, with and without the bank, plus the cross term $\lVert W_0 P_0 P_1 \rVert_F$ for a random $W_0$. Its output matches the committed log exactly.
+The synthetic check builds random rank-8 concepts in 768 dimensions with 40 samples each and compares the projectors' pairwise products, with and without the bank, plus the cross term $\lVert W_0 P_0 P_1 \rVert_F$ for a random $W_0$.
 
 | Concepts | max off-diagonal $\lVert P_i P_j \rVert_F$, base | same, orthogonalized | bank dims used |
 |---:|---:|---:|---:|

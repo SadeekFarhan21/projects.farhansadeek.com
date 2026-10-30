@@ -1,0 +1,12 @@
+```{r}
+library(tidyverse)
+library(ggplot2)
+random <- "data/randome_sample/responses.csv"
+responses <- read_csv(random)
+responses
+```
+
+```{r}
+responses |>
+    group_by(lrn_type) |>
+```

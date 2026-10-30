@@ -2,7 +2,7 @@
 layout: post
 title: "Keeping My Own Copy of WakaTime"
 tab_title: WakaFree
-code: https://github.com/SadeekFarhan21/projects/tree/main/wakafree
+code: https://github.com/SadeekFarhan21/projects.farhansadeek.com/tree/main/wakafree
 date: 2026-06-28 22:49:28
 tags:
   - wakatime
@@ -18,7 +18,7 @@ description: >-
 
 WakaFree keeps a permanent copy of my coding time. WakaTime already measures it, but its free plan only shows the last week, so I built a tracker that speaks WakaTime's API and saves WakaTime's answer for every day into my own database. Most of the work turned out to be about calendars. **Archiving coding time means agreeing with WakaTime on where each day starts and how long it lasts, and a local day can run 23, 24, 25 or more hours.**
 
-WakaFree is a coding-time tracker I built on my own and run at [wakafree.farhansadeek.com](https://wakafree.farhansadeek.com). It has three parts. A VS Code extension sends WakaTime-style heartbeats, a Next.js 15 and Supabase server accepts them on WakaTime's `/api/v1` routes and copies WakaTime's daily summaries and timelines into Postgres (one row per day, refreshed every 20 minutes and backfilled over a full year every night), and a FastMCP server exposes the WakaTime API to an LLM client as 15 tools. It's 35 commits, made on four days between June 28 and August 8, 2026, and it has one user, me.
+WakaFree is a coding-time tracker I built on my own and run at [wakafree.farhansadeek.com](https://wakafree.farhansadeek.com). It has three parts. A VS Code extension sends WakaTime-style heartbeats, a Next.js 15 and Supabase server accepts them on WakaTime's `/api/v1` routes and copies WakaTime's daily summaries and timelines into Postgres (one row per day, refreshed every 20 minutes and backfilled over a full year every night), and a FastMCP server exposes the WakaTime API to an LLM client as 15 tools. It's a solo summer project from 2026, and it has one user, me.
 
 ## Why It Matters
 
@@ -75,7 +75,7 @@ WakaTime also joins heartbeats into sessions it calls durations, and it can spli
 
 WakaTime's API returns a day's durations and heartbeats from midnight to 11:59 PM in the user's timezone<sup>[[1]](#ref-1)</sup>. That sounds like a detail until you write code that asks for "today". Anywhere west of UTC, the UTC date rolls over before local midnight. In a zone five hours behind, 19:00 on January 15 is already January 16 in UTC, so every evening has a five-hour window where UTC is a day ahead.
 
-Days also come in different lengths. Measured from one local midnight to the next with the repo's own helper, an ordinary New York day is 24 hours, **the US spring-forward day, 2026-03-08, is 23 hours, and the fall-back day, 2026-11-01, is 25**. A day that starts at midnight in one zone and ends at midnight in a zone two hours west is 26 hours, and one that ends two hours east is 22. The start of each day has to be computed on its own, because adding 86,400 seconds to the start of March 8 lands an hour after the real start of March 9.
+Days also come in different lengths. Measured from one local midnight to the next with WakaFree's own date helper, an ordinary New York day is 24 hours, **the US spring-forward day, 2026-03-08, is 23 hours, and the fall-back day, 2026-11-01, is 25**. A day that starts at midnight in one zone and ends at midnight in a zone two hours west is 26 hours, and one that ends two hours east is 22. The start of each day has to be computed on its own, because adding 86,400 seconds to the start of March 8 lands an hour after the real start of March 9.
 
 <figure class="excal" data-diagram="wakafree-day-boundary"><a href="/img/diagrams/wakafree-day-boundary.webp" class="excal-link" aria-label="Open the diagram full size"><img src="/img/diagrams/wakafree-day-boundary.webp" alt="Two panels built from the repo's date helpers: the first lines up local time five hours behind UTC against UTC for January 15 to 16 and shows that at 19:00 local UTC is already January 16, which is why offsetDate takes today in the local zone anchored at 12:00 UTC; the second draws bars measured from local midnight to the next local midnight, 24 hours on an ordinary day, 23 on the US spring-forward day 2026-03-08, 25 on the fall-back day 2026-11-01 and 26 on a day that ends in a zone 2 hours west." width="2400" height="3476" loading="lazy" decoding="async"></a></figure>
 
@@ -111,7 +111,7 @@ async function flush(): Promise<void> {
 }
 ```
 
-Running the extension's `tracker.ts` under a fake clock with synthetic edits shows how much the debounce saves.
+Driving the tracker with synthetic edits under a fake clock shows how much the debounce saves.
 
 | Scenario | Heartbeats sent |
 |---|---|

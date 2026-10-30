@@ -1,0 +1,2 @@
+nodes,edges,density,components,diameter,avg_path_length,transitivity,local_clustering,degree_assortativity,ml_target_assortativity,modularity_fg,max_kcore,vertex_connectivity,edge_connectivity
+37700,289003,4.0668782031170683e-4,1,11,3.2383213878355717,0.012357188884259466,0.19342050494565696,-0.07521713413904484,0.37782150222233424,0.39568842168096385,34,1,1

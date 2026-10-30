@@ -1,0 +1,7 @@
+{
+  "name": "native-code-editor",
+  "version": "0.1.0",
+  "description": "Custom native code editor (UITextView / AppCompatEditText) with attributed-string syntax highlighting.",
+  "main": "index.ts",
+  "private": true
+}

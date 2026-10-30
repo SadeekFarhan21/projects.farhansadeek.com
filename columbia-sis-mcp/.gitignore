@@ -1,0 +1,10 @@
+CLAUDE.local.md
+node_modules/
+npm-debug.log*
+.DS_Store
+.env
+playwright-report/
+test-results/
+.playwright-mcp/
+.vergil-profile/
+out/

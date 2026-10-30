@@ -1,0 +1,363 @@
+---
+import Layout from '../layouts/Layout.astro';
+---
+
+<Layout title="Prayer Time">
+  <div class="screen" id="app">
+    <!-- Loading -->
+    <div class="loading" id="loading-screen">
+      <div class="spinner"></div>
+    </div>
+
+    <!-- Location Selection -->
+    <div class="location-screen hidden" id="location-screen">
+      <h1>Select Your Location</h1>
+      <p class="subtitle">Choose your city to see accurate prayer times</p>
+
+      <div id="gps-button-container"></div>
+
+      <div class="divider-row" id="divider-row">
+        <div class="divider-line"></div>
+        <span class="divider-text">or choose a city</span>
+        <div class="divider-line"></div>
+      </div>
+
+      <div class="location-list" id="location-list"></div>
+    </div>
+
+    <!-- Prayer Times -->
+    <div class="prayer-screen hidden" id="prayer-screen">
+      <div class="day" id="day-of-week"></div>
+      <div class="date" id="current-date"></div>
+      <div class="meta-row">
+        <button class="location-link" id="change-location">
+          <span class="material-icons">location_on</span>
+          <span id="location-name"></span>
+        </button>
+        <span class="current-time" id="current-time"></span>
+      </div>
+
+      <div class="section-title">Prayer Times</div>
+      <div id="prayer-times-list"></div>
+
+      <div class="section-title">Other Information</div>
+      <div id="other-info-list"></div>
+    </div>
+
+    <!-- Error -->
+    <div class="error-screen hidden" id="error-screen">
+      <span class="material-icons">error_outline</span>
+      <p id="error-message">Unable to load prayer times.</p>
+      <button id="error-change-location">Change Location</button>
+    </div>
+  </div>
+</Layout>
+
+<script>
+  import { Coordinates, CalculationMethod, PrayerTimes, Madhab } from 'adhan';
+  import { DateTime } from 'luxon';
+
+  interface LocationData {
+    name: string;
+    latitude: number;
+    longitude: number;
+    timezone: string;
+  }
+
+  const LOCATIONS: LocationData[] = [
+    { name: 'San Francisco, CA', latitude: 37.7749, longitude: -122.4194, timezone: 'America/Los_Angeles' },
+    { name: 'Boston, MA', latitude: 42.3601, longitude: -71.0589, timezone: 'America/New_York' },
+    { name: 'New York, NY', latitude: 40.7128, longitude: -74.006, timezone: 'America/New_York' },
+    { name: 'Columbus, OH', latitude: 39.9612, longitude: -82.9988, timezone: 'America/New_York' },
+    { name: 'Hanover, NH', latitude: 43.7022, longitude: -72.2896, timezone: 'America/New_York' },
+  ];
+
+  const CURRENT_LOCATION_KEY = '__current_location__';
+
+  const TZ_ABBR_MAP: Record<string, { standard: string; daylight: string }> = {
+    'America/Los_Angeles': { standard: 'PST', daylight: 'PDT' },
+    'America/New_York': { standard: 'EST', daylight: 'EDT' },
+    'America/Chicago': { standard: 'CST', daylight: 'CDT' },
+    'America/Denver': { standard: 'MST', daylight: 'MDT' },
+    'America/Anchorage': { standard: 'AKST', daylight: 'AKDT' },
+    'Europe/London': { standard: 'GMT', daylight: 'BST' },
+    'Europe/Paris': { standard: 'CET', daylight: 'CEST' },
+    'Asia/Kolkata': { standard: 'IST', daylight: 'IST' },
+    'Asia/Karachi': { standard: 'PKT', daylight: 'PKT' },
+    'Asia/Riyadh': { standard: 'AST', daylight: 'AST' },
+    'Asia/Dubai': { standard: 'GST', daylight: 'GST' },
+    'Asia/Tokyo': { standard: 'JST', daylight: 'JST' },
+    'Asia/Shanghai': { standard: 'CST', daylight: 'CST' },
+  };
+
+  // DOM elements
+  const loadingScreen = document.getElementById('loading-screen')!;
+  const locationScreen = document.getElementById('location-screen')!;
+  const prayerScreen = document.getElementById('prayer-screen')!;
+  const errorScreen = document.getElementById('error-screen')!;
+  const locationList = document.getElementById('location-list')!;
+  const gpsButtonContainer = document.getElementById('gps-button-container')!;
+  const prayerTimesList = document.getElementById('prayer-times-list')!;
+  const otherInfoList = document.getElementById('other-info-list')!;
+
+  function showScreen(screen: 'loading' | 'location' | 'prayer' | 'error') {
+    loadingScreen.classList.toggle('hidden', screen !== 'loading');
+    locationScreen.classList.toggle('hidden', screen !== 'location');
+    prayerScreen.classList.toggle('hidden', screen !== 'prayer');
+    errorScreen.classList.toggle('hidden', screen !== 'error');
+  }
+
+  function buildTimeCard(label: string, time: string): string {
+    return `<div class="time-card"><span class="label">${label}</span><span class="time">${time}</span></div>`;
+  }
+
+  function formatTime(date: Date, timezone: string): string {
+    try {
+      const dt = DateTime.fromJSDate(date, { zone: timezone });
+      return dt.toFormat('HH:mm');
+    } catch {
+      return '--:--';
+    }
+  }
+
+  function getTimezoneAbbr(timezone: string): string {
+    try {
+      const now = DateTime.now().setZone(timezone);
+      const jan = DateTime.fromObject({ year: now.year, month: 1, day: 1 }, { zone: timezone });
+      const isDST = now.offset > jan.offset;
+      const mapping = TZ_ABBR_MAP[timezone];
+      if (mapping) {
+        return isDST ? mapping.daylight : mapping.standard;
+      }
+      const offset = now.offset / 60;
+      return offset >= 0 ? `GMT+${offset}` : `GMT${offset}`;
+    } catch {
+      return '';
+    }
+  }
+
+  function showPrayerTimesForLocation(location: LocationData) {
+    try {
+      const coordinates = new Coordinates(location.latitude, location.longitude);
+      const params = CalculationMethod.NorthAmerica();
+      params.madhab = Madhab.Shafi;
+
+      const now = new Date();
+      const prayerTimes = new PrayerTimes(coordinates, now, params);
+
+      const times: Record<string, string> = {
+        Fajr: formatTime(prayerTimes.fajr, location.timezone),
+        Sunrise: formatTime(prayerTimes.sunrise, location.timezone),
+        Dhuhr: formatTime(prayerTimes.dhuhr, location.timezone),
+        Asr: formatTime(prayerTimes.asr, location.timezone),
+        Maghrib: formatTime(prayerTimes.maghrib, location.timezone),
+        Isha: formatTime(prayerTimes.isha, location.timezone),
+        Sunset: formatTime(prayerTimes.maghrib, location.timezone),
+      };
+
+      // Set header info
+      const luxonNow = DateTime.now().setZone(location.timezone);
+      document.getElementById('day-of-week')!.textContent = luxonNow.toFormat('EEEE');
+      document.getElementById('current-date')!.textContent = luxonNow.toFormat('d MMMM, yyyy');
+      document.getElementById('location-name')!.textContent = location.name;
+
+      const tzAbbr = getTimezoneAbbr(location.timezone);
+      document.getElementById('current-time')!.textContent = `${luxonNow.toFormat('HH:mm')} ${tzAbbr}`;
+
+      // Render prayer times
+      const prayers = ['Fajr', 'Dhuhr', 'Asr', 'Maghrib', 'Isha'];
+      prayerTimesList.innerHTML = prayers.map((p) => buildTimeCard(p, times[p] || '--:--')).join('');
+
+      const other = ['Sunrise', 'Sunset'];
+      otherInfoList.innerHTML = other.map((o) => buildTimeCard(o, times[o] || '--:--')).join('');
+
+      showScreen('prayer');
+    } catch (e) {
+      console.error('Error calculating prayer times:', e);
+      document.getElementById('error-message')!.textContent =
+        'Unable to calculate prayer times. Please try selecting your location again.';
+      showScreen('error');
+    }
+  }
+
+  function showPrayerTimes(locationName: string) {
+    const location = LOCATIONS.find((l) => l.name === locationName);
+    if (!location) {
+      document.getElementById('error-message')!.textContent = 'Location not found. Please select again.';
+      showScreen('error');
+      return;
+    }
+    showPrayerTimesForLocation(location);
+  }
+
+  function saveCustomLocation(lat: number, lng: number, tz: string) {
+    try {
+      localStorage.setItem('selected_location', CURRENT_LOCATION_KEY);
+      localStorage.setItem('custom_latitude', String(lat));
+      localStorage.setItem('custom_longitude', String(lng));
+      localStorage.setItem('custom_timezone', tz);
+    } catch (e) {
+      console.error('Error saving custom location:', e);
+    }
+  }
+
+  function loadCustomLocation(): LocationData | null {
+    try {
+      const lat = localStorage.getItem('custom_latitude');
+      const lng = localStorage.getItem('custom_longitude');
+      const tz = localStorage.getItem('custom_timezone');
+      if (lat && lng && tz) {
+        return {
+          name: 'Current Location',
+          latitude: parseFloat(lat),
+          longitude: parseFloat(lng),
+          timezone: tz,
+        };
+      }
+    } catch (e) {
+      console.error('Error loading custom location:', e);
+    }
+    return null;
+  }
+
+  function clearAllLocation() {
+    try {
+      localStorage.removeItem('selected_location');
+      localStorage.removeItem('custom_latitude');
+      localStorage.removeItem('custom_longitude');
+      localStorage.removeItem('custom_timezone');
+    } catch (e) {
+      console.error('Error clearing location:', e);
+    }
+  }
+
+  async function useMyLocation() {
+    const btn = document.getElementById('gps-btn')!;
+    const btnLabel = document.getElementById('gps-btn-label')!;
+    const btnIcon = document.getElementById('gps-btn-icon')!;
+
+    btn.classList.add('locating');
+    btnLabel.textContent = 'Getting your location...';
+    btnIcon.innerHTML = '<div class="spinner-small"></div>';
+
+    try {
+      if (!navigator.geolocation) {
+        throw new Error('Geolocation is not supported by your browser.');
+      }
+
+      const position = await new Promise<GeolocationPosition>((resolve, reject) => {
+        navigator.geolocation.getCurrentPosition(resolve, reject, {
+          enableHighAccuracy: true,
+          timeout: 15000,
+          maximumAge: 0,
+        });
+      });
+
+      const lat = position.coords.latitude;
+      const lng = position.coords.longitude;
+      // Use browser's IANA timezone
+      const tz = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
+
+      saveCustomLocation(lat, lng, tz);
+
+      const location: LocationData = {
+        name: 'Current Location',
+        latitude: lat,
+        longitude: lng,
+        timezone: tz,
+      };
+
+      showPrayerTimesForLocation(location);
+    } catch (e: any) {
+      console.error('Error getting location:', e);
+      let msg = 'Could not get your location. Please try again or select a city manually.';
+      if (e.code === 1) {
+        msg = 'Location permission denied. Please allow location access and try again.';
+      } else if (e.code === 2) {
+        msg = 'Location unavailable. Please check your device settings.';
+      } else if (e.code === 3) {
+        msg = 'Location request timed out. Please try again.';
+      }
+
+      // Show a temporary error banner
+      const banner = document.createElement('div');
+      banner.className = 'error-banner';
+      banner.textContent = msg;
+      gpsButtonContainer.parentElement?.insertBefore(banner, gpsButtonContainer.nextSibling);
+      setTimeout(() => banner.remove(), 5000);
+    } finally {
+      btn.classList.remove('locating');
+      btnLabel.textContent = 'Use My Location';
+      btnIcon.innerHTML = '<span class="material-icons arrow">arrow_forward_ios</span>';
+    }
+  }
+
+  function showLocationSelection() {
+    clearAllLocation();
+
+    // GPS button
+    gpsButtonContainer.innerHTML = `
+      <div class="location-card gps-card" id="gps-btn">
+        <span class="material-icons">my_location</span>
+        <div class="gps-card-text">
+          <span class="name" id="gps-btn-label">Use My Location</span>
+          <span class="gps-subtitle">Automatically detect using GPS</span>
+        </div>
+        <span id="gps-btn-icon"><span class="material-icons arrow">arrow_forward_ios</span></span>
+      </div>
+    `;
+    document.getElementById('gps-btn')!.addEventListener('click', useMyLocation);
+
+    // Preset location cards
+    locationList.innerHTML = LOCATIONS.map(
+      (loc) => `
+      <div class="location-card" data-location="${loc.name}">
+        <span class="material-icons">location_on</span>
+        <span class="name">${loc.name}</span>
+        <span class="material-icons arrow">arrow_forward_ios</span>
+      </div>
+    `
+    ).join('');
+
+    locationList.querySelectorAll('.location-card').forEach((card) => {
+      card.addEventListener('click', () => {
+        const name = (card as HTMLElement).dataset.location!;
+        try {
+          localStorage.setItem('selected_location', name);
+        } catch (e) {
+          console.error('Error saving location:', e);
+        }
+        showPrayerTimes(name);
+      });
+    });
+
+    showScreen('location');
+  }
+
+  // Change location buttons
+  document.getElementById('change-location')!.addEventListener('click', showLocationSelection);
+  document.getElementById('error-change-location')!.addEventListener('click', showLocationSelection);
+
+  // Init
+  function init() {
+    try {
+      const saved = localStorage.getItem('selected_location');
+
+      if (saved === CURRENT_LOCATION_KEY) {
+        const custom = loadCustomLocation();
+        if (custom) {
+          showPrayerTimesForLocation(custom);
+          return;
+        }
+      } else if (saved && LOCATIONS.some((l) => l.name === saved)) {
+        showPrayerTimes(saved);
+        return;
+      }
+    } catch {
+      // Fall through to location selection
+    }
+    showLocationSelection();
+  }
+
+  init();
+</script>

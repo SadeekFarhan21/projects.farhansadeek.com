@@ -2,7 +2,7 @@
 layout: post
 title: "Casual Riders Keep Divvy Bikes Twice as Long"
 tab_title: Divvy Trips
-code: https://github.com/SadeekFarhan21/projects/tree/main/divvy-bike-analysis
+code: https://github.com/SadeekFarhan21/projects.farhansadeek.com/tree/main/divvy-bike-analysis
 date: 2025-01-18 13:34:33
 tags:
   - r

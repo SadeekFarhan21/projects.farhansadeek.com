@@ -2,7 +2,7 @@
 layout: post
 title: "Graphing What Biomedical Papers Mention Together"
 tab_title: Empirica
-code: https://github.com/SadeekFarhan21/projects/tree/main/empirica-biomedical-graphs
+code: https://github.com/SadeekFarhan21/projects.farhansadeek.com/tree/main/empirica-biomedical-graphs
 date: 2025-10-24 23:27:00
 tags:
   - nlp
@@ -17,7 +17,7 @@ description: >-
 
 Someone facing a stack of papers on one topic first wants to know which genes, drugs, diseases and cell types they keep mentioning together. Empirica turns biomedical PDFs into a knowledge graph that shows it. A scispaCy model<sup>[[1]](#ref-1)</sup> finds the entities, any two entities that share a sentence get an edge, NetworkX finds communities and bridge nodes, and the result is drawn as an interactive 2D or 3D force-directed graph<sup>[[2]](#ref-2)</sup>, with a Claude-backed chat and hypothesis generator on top. Three of us built it in about 31 hours at a weekend hackathon.
 
-I ran the core pipeline on three open-access papers. The graphs were small, 20 to 37 nodes, and nearly every edge came from plain co-occurrence: 44 to 190 per paper, against 1 to 14 from verb patterns. The scispaCy pass took 7.2 to 12.8 seconds per paper and everything after it under a quarter of a second, so the model is the pipeline.
+On three open-access papers the graphs were small, 20 to 37 nodes, and nearly every edge came from plain co-occurrence: 44 to 190 per paper, against 1 to 14 from verb patterns. The scispaCy pass took 7.2 to 12.8 seconds per paper and everything after it under a quarter of a second, so the model is the pipeline.
 
 ## Why It Matters
 
@@ -25,7 +25,7 @@ The idea was a reading aid. Instead of skimming forty abstracts, you upload the 
 
 The scope was broad for a weekend: several PDFs per project, each with its own graph that can be switched on and off; biomedical entity extraction; communities and centrality so the graph says something beyond a hairball; an LLM chat and hypothesis generator; an agent that finds more papers; and Google sign-in with a project list per user.
 
-Jalen Francis built most of it, including the NLP and graph pipeline, the retrieval layer, the LLM service, the agentic module and most of the frontend. Edward Kim wrote the first Google OAuth pass. I built the login screen and branding and the backend's health-check and auth-check endpoints. The upstream repository is [jalenfran/synapsemapper](https://github.com/jalenfran/synapsemapper), and my copy is [SadeekFarhan21/empirica](https://github.com/SadeekFarhan21/empirica).
+Jalen Francis built most of it, including the NLP and graph pipeline, the retrieval layer, the LLM service, the agentic module and most of the frontend. Edward Kim wrote the first Google OAuth pass. I built the login screen and branding and the backend's health-check and auth-check endpoints.
 
 ## Technical Details
 
@@ -100,7 +100,7 @@ if edge_key in merged:
 
 ### Sign-in and Health Checks
 
-My part sat at the edges of the system. I rewrote and extended Edward's `LoginComponent.tsx` into the login screen and did the branding. On the backend I added a CORS list in `config.py` and small endpoints to `backend/app/main.py`: `/api/health`, `/api/test-auth`, and `/api/projects-test`, which lists the signed-in user's projects.
+My part sat at the edges of the system. I rewrote and extended Edward's login component into the login screen and did the branding. On the backend I added the CORS configuration and three small endpoints, `/api/health`, `/api/test-auth`, and `/api/projects-test`, which lists the signed-in user's projects.
 
 ```python
 @app.get("/api/health")
@@ -130,11 +130,9 @@ A researcher wants to see a project's PDFs together, apart, or with one left out
 
 ## Experiments
 
-To see how the pipeline behaves on real papers, I wrote `scripts/measure_pipeline.py`. It downloads each paper's full-text XML from Europe PMC<sup>[[9]](#ref-9)</sup>, writes it into a plain-text PDF with PyMuPDF, and runs it through the project's `PDFProcessor`, `NERService`, `RelationshipExtractor` and `GraphBuilder` unchanged, timing each stage. There are no LLM calls. I used three CC BY papers: a JNK and cisplatin review (PMC13028654), a study of MK2, p38 and p53 in macrophages (PMC13072840), and a SNORA64 and apoptosis paper (PMC13090758). The last one has no license tag in its XML, though Europe PMC's metadata lists it as CC BY.
+The experiment takes three CC BY papers and runs each through the project's `PDFProcessor`, `NERService`, `RelationshipExtractor` and `GraphBuilder` unchanged, timing each stage on an Apple silicon Mac's CPU. There are no LLM calls. The papers are a JNK and cisplatin review (PMC13028654), a study of MK2, p38 and p53 in macrophages (PMC13072840), and a SNORA64 and apoptosis paper (PMC13090758). The last one has no license tag in its XML, though Europe PMC's metadata lists it as CC BY.
 
-Setup was Python 3.11 on an Apple silicon Mac, CPU only, with spaCy 3.7.4, scispaCy 0.5.5, `en_ner_bionlp13cg_md` 0.5.4, NetworkX 3.2.1, python-louvain 0.16 and PyMuPDF 1.24.13.
-
-Publisher PDFs were behind a bot check, so the inputs are synthesised from XML: single column, no headers, no footnotes, which probably makes sentence splitting cleaner than on a real two-column PDF. Each paper was run once, and with no ground truth these numbers say how the pipeline behaves, not whether an edge is correct.
+Each input is the paper's full-text XML from Europe PMC<sup>[[9]](#ref-9)</sup>, written into a plain-text PDF with PyMuPDF. That gives a single column with no headers or footnotes, which probably makes sentence splitting cleaner than on a real two-column PDF. Each paper was run once, and with no ground truth these numbers say how the pipeline behaves, not whether an edge is correct.
 
 ## Results
 

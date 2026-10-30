@@ -1,0 +1,79 @@
+{
+  "workbench.iconTheme": "material-icon-theme",
+  "workbench.productIconTheme": "material-product-icons",
+  "files.autoSave": "afterDelay",
+  "files.autoSaveDelay": 100,
+  "editor.fontFamily": "'GeistMono Nerd Font Mono', Menlo, Monaco, 'Courier New', monospace",
+  "editor.fontSize": 14,
+  "editor.fontLigatures": "'ss11'",
+  "editor.fontVariations": false,
+  "editor.lineNumbers": "relative",
+  "editor.overtypeCursorStyle": "line",
+  "editor.accessibilitySupport": "off",
+  "terminal.integrated.cursorStyle": "line",
+  "terminal.integrated.cursorStyleInactive": "line",
+  "terminal.integrated.fontFamily": "'GeistMono Nerd Font Mono', Menlo, Monaco, 'Courier New', monospace",
+  "terminal.integrated.fontSize": 14,
+  "debug.console.fontFamily": "'GeistMono Nerd Font Mono', Menlo, Monaco, 'Courier New', monospace",
+  "editor.inlineSuggest.fontFamily": "'GeistMono Nerd Font Mono', Menlo, Monaco, 'Courier New', monospace",
+  "editor.formatOnSave": true,
+  "editor.formatOnPaste": false,
+  "editor.formatOnType": true,
+
+  /* C / C++ Configuration */
+  "[c]": {
+    "editor.formatOnType": true,
+    "editor.formatOnSave": true,
+    "editor.formatOnPaste": false,
+    "editor.parameterHints.enabled": false,
+    "editor.inlayHints.enabled": "off",
+    "editor.defaultFormatter": "xaver.clang-format"
+  },
+  "[cpp]": {
+    "editor.formatOnType": true,
+    "editor.formatOnSave": true,
+    "editor.inlayHints.enabled": "off",
+    "editor.defaultFormatter": "xaver.clang-format"
+  },
+  "clangd.path": "/usr/bin/clangd",
+  "clangd.arguments": [
+    "--query-driver=/opt/homebrew/opt/gcc/bin/g++-16"
+  ],
+  "C_Cpp.formatting": "clangFormat",
+  "C_Cpp.intelliSenseEngine": "disabled",
+  "C_Cpp.errorSquiggles": "disabled",
+  "C_Cpp.clang_format_path": "/opt/homebrew/opt/clang-format/bin/clang-format",
+  "clang-format.executable.osx": "/opt/homebrew/opt/clang-format/bin/clang-format",
+  "clang-format.style": "file",
+  "C_Cpp.default.compilerPath": "/opt/homebrew/opt/gcc/bin/g++-16",
+  "C_Cpp.default.cppStandard": "c++23",
+  "C_Cpp.default.intelliSenseMode": "macos-gcc-arm64",
+  "C_Cpp.inlayHints.parameterNames.enabled": false,
+  "C_Cpp.inlayHints.referenceOperator.enabled": false,
+  "editor.parameterHints.enabled": false,
+  "code-runner.executorMap": {
+    "cpp": "cd $dir && /opt/homebrew/opt/gcc/bin/g++-16 -std=c++23 -I/opt/homebrew/opt/boost/include $fileName -o $fileNameWithoutExt && $dir$fileNameWithoutExt"
+  },
+  "code-runner.runInTerminal": true,
+  "code-runner.saveFileBeforeRun": true,
+
+  /* CPH: use Homebrew GCC (Apple Clang lacks <bits/stdc++.h>) */
+  "cph.language.cpp.Command": "/opt/homebrew/opt/gcc/bin/g++-16",
+  "cph.language.cpp.command": "/opt/homebrew/opt/gcc/bin/g++-16",
+  "cph.language.cpp.Args": "-O2 -std=c++23 -Wall -DCPH -I/opt/homebrew/opt/boost/include",
+  "cph.language.cpp.args": "-O2 -std=c++23 -Wall -DCPH -I/opt/homebrew/opt/boost/include",
+  "cph.language.cpp.OutputArg": "-o",
+  "cph.language.cpp.outputArg": "-o",
+
+  /* CPH-NG: use Homebrew GCC (Apple Clang lacks <bits/stdc++.h>) */
+  "cph-ng.languages.cppCompiler": "/opt/homebrew/opt/gcc/bin/g++-16",
+  "cph-ng.languages.cppCompilerArgs": "-O2 -std=c++23 -Wall -DCPH -I/opt/homebrew/opt/boost/include",
+  "cph-ng.languages.cppObjcopy": "/opt/homebrew/opt/binutils/bin/gobjcopy",
+  "cph-ng.run.useWrapper": false,
+
+  /* LaTeX */
+  "latex-workshop.formatting.latex": "latexindent",
+  "latex-workshop.bibtex-format.tab": "4 spaces",
+  "workbench.colorTheme": "GitHub Dark",
+  "editor.codeActionsOnSave": {}
+}

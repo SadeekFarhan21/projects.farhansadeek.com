@@ -1,0 +1,25 @@
+name: Refresh LeetCode
+
+on:
+  workflow_dispatch:
+    inputs:
+      full:
+        description: Paginate the entire history (one-time backfill)
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+# Shared with every other refresh workflow so only one commits at a time.
+concurrency:
+  group: refresh-submission-data
+  cancel-in-progress: false
+
+jobs:
+  refresh:
+    uses: ./.github/workflows/refresh-platform.yml
+    with:
+      platforms: leetcode
+      full: ${{ inputs.full == true }}
+    secrets: inherit

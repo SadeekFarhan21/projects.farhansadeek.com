@@ -1,0 +1,23 @@
+{
+    "configurations": [
+        {
+            "name": "Mac",
+            "includePath": [
+                "${workspaceFolder}/**",
+                "/opt/homebrew/opt/gcc/include/c++/16",
+                "/opt/homebrew/opt/gcc/include/c++/16/aarch64-apple-darwin25",
+                "/opt/homebrew/opt/gcc/include/c++/16/backward",
+                "/opt/homebrew/opt/boost/include"
+            ],
+            "compilerPath": "/opt/homebrew/opt/gcc/bin/g++-16",
+            "compilerArgs": [
+                "-std=c++23",
+                "-I/opt/homebrew/opt/boost/include"
+            ],
+            "cStandard": "c17",
+            "cppStandard": "c++23",
+            "intelliSenseMode": "macos-gcc-arm64"
+        }
+    ],
+    "version": 4
+}

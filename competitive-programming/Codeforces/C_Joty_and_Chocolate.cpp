@@ -1,0 +1,22 @@
+#include <bits/stdc++.h>
+using namespace std;
+#define int long long
+#define double long double
+
+int32_t main() {
+    ios::sync_with_stdio(false);
+    cin.tie(0);
+    cout.tie(0);
+    int n, a, b, p, q;
+    cin >> n >> a >> b >> p >> q;
+    int red = n / a;
+    int blue = n / b;
+    int common = n / lcm(a, b);
+    int answer = p * red + q * blue;
+    if (p < q) {
+        answer -= p * common;
+    } else {
+        answer -= q * common;
+    }
+    cout << answer << "\n";
+}

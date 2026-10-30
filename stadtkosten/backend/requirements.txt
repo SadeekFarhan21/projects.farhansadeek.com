@@ -1,0 +1,8 @@
+Pillow
+pyzbar
+requests
+opencv-python
+google-cloud-vision
+cloudmersive-validate-api-client
+cloudmersive-barcode-api-client
+python-dotenv

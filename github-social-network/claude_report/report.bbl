@@ -1,0 +1,75 @@
+\begin{thebibliography}{10}
+
+\bibitem{musegnn2023}
+Anonymous.
+\newblock Musegnn: Forming scalable, convergent gnn layers that minimize a
+  sampling-based energy.
+\newblock In {\em International Conference on Learning Representations (ICLR)},
+  2023.
+
+\bibitem{brody2022gatv2}
+Shaked Brody, Uri Alon, and Eran Yahav.
+\newblock How attentive are graph attention networks?
+\newblock In {\em International Conference on Learning Representations (ICLR)},
+  2022.
+
+\bibitem{fang2024gcnlstm}
+Yongjun Fang et~al.
+\newblock Enhancing link prediction in dynamic social networks through hybrid
+  {GCN-LSTM} models.
+\newblock {\em Complex Networks}, 2024.
+
+\bibitem{grover2016node2vec}
+Aditya Grover and Jure Leskovec.
+\newblock node2vec: Scalable feature learning for networks.
+\newblock In {\em Proceedings of the 22nd ACM SIGKDD International Conference
+  on Knowledge Discovery and Data Mining}, pages 855--864. ACM, 2016.
+
+\bibitem{hamilton2017graphsage}
+Will Hamilton, Zhitao Ying, and Jure Leskovec.
+\newblock Inductive representation learning on large graphs.
+\newblock In {\em Advances in Neural Information Processing Systems},
+  volume~30, 2017.
+
+\bibitem{kipf2017gcn}
+Thomas~N. Kipf and Max Welling.
+\newblock Semi-supervised classification with graph convolutional networks.
+\newblock In {\em International Conference on Learning Representations (ICLR)},
+  2017.
+
+\bibitem{kolaczyk2020sand}
+Eric~D. Kolaczyk and G{\'a}bor Cs{\'a}rdi.
+\newblock {\em Statistical Analysis of Network Data with R}.
+\newblock Use R! Springer Cham, 2 edition, 2020.
+
+\bibitem{perozzi2014deepwalk}
+Bryan Perozzi, Rami Al-Rfou, and Steven Skiena.
+\newblock Deepwalk: Online learning of social representations.
+\newblock In {\em Proceedings of the 20th ACM SIGKDD International Conference
+  on Knowledge Discovery and Data Mining}, pages 701--710. ACM, 2014.
+
+\bibitem{rozemberczki2021musae}
+Benedek Rozemberczki, Carl Allen, and Rik Sarkar.
+\newblock Musae: Multi-scale attributed node embedding.
+\newblock {\em Applied Network Science}, 6(1):1--21, 2021.
+
+\bibitem{velickovic2018gat}
+Petar Veli{\v{c}}kovi{\'c}, Guillem Cucurull, Arantxa Casanova, Adriana Romero,
+  Pietro Li{\`o}, and Yoshua Bengio.
+\newblock Graph attention networks.
+\newblock In {\em International Conference on Learning Representations (ICLR)},
+  2018.
+
+\bibitem{wang2024impact}
+Xiaofeng Wang et~al.
+\newblock The impact of collaboration patterns and network centrality on
+  long-term contribution in {GitHub} projects.
+\newblock {\em Sustainability}, 16, 2024.
+
+\bibitem{yu2023unfollowing}
+Yue Yu et~al.
+\newblock A first look at unfollowing behavior on {GitHub}.
+\newblock In {\em Proceedings of the International Conference on Software
+  Engineering}, 2023.
+
+\end{thebibliography}

@@ -1,0 +1,172 @@
+@import "tailwindcss";
+
+@theme {
+  /* ── Night Sky Sanctuary ──
+     Deep midnight blues, soft lavender starlight,
+     dusty rose warmth, gentle amber glow.
+     Twilight · stillness · warmth. */
+
+  /* Surface — deep midnight blues & near-blacks */
+  --color-surface: #080b14;
+  --color-surface-dim: #060911;
+  --color-surface-bright: #1e2636;
+  --color-surface-container-lowest: #030508;
+  --color-surface-container-low: #0c1019;
+  --color-surface-container: #111621;
+  --color-surface-container-high: #161c29;
+  --color-surface-container-highest: #1c2331;
+  --color-surface-variant: #1c2331;
+  --color-surface-tint: #cdc5f0;
+
+  /* Primary — Soft Lavender (starlight) */
+  --color-primary: #cdc5f0;
+  --color-primary-dim: #b0a8d4;
+  --color-primary-fixed: #c5bce8;
+  --color-primary-fixed-dim: #b0a8d4;
+  --color-primary-container: #c5bce8;
+  --color-on-primary: #3d365c;
+  --color-on-primary-fixed: #2e2848;
+  --color-on-primary-container: #3d365c;
+  --color-on-primary-fixed-variant: #4d4670;
+  --color-inverse-primary: #4d4670;
+
+  /* Secondary — Dusty Rose (twilight warmth) */
+  --color-secondary: #e4a0b0;
+  --color-secondary-dim: #d08c9c;
+  --color-secondary-fixed: #f0c0cc;
+  --color-secondary-fixed-dim: #e0b0bc;
+  --color-secondary-container: #3d1a28;
+  --color-on-secondary: #5c2838;
+  --color-on-secondary-fixed: #4a1e2c;
+  --color-on-secondary-container: #d89caa;
+  --color-on-secondary-fixed-variant: #6d3848;
+
+  /* Tertiary — Gentle Amber (warm starlight glow) */
+  --color-tertiary: #d4a574;
+  --color-tertiary-dim: #c09060;
+  --color-tertiary-fixed: #e0bb90;
+  --color-tertiary-fixed-dim: #c8a278;
+  --color-tertiary-container: #3d2810;
+  --color-on-tertiary: #3d2810;
+  --color-on-tertiary-fixed: #2e1e0c;
+  --color-on-tertiary-container: #c89c68;
+  --color-on-tertiary-fixed-variant: #5c4020;
+
+  /* Text on surfaces */
+  --color-on-surface: #d8dce8;
+  --color-on-surface-variant: #8b92a4;
+  --color-on-background: #d8dce8;
+  --color-outline: #5a6275;
+  --color-outline-variant: #353d50;
+
+  /* Error — softer, less alarming */
+  --color-error: #e07070;
+  --color-error-dim: #b85858;
+  --color-error-container: #6e2020;
+  --color-on-error: #3a0808;
+  --color-on-error-container: #f0a0a0;
+
+  /* Inverse */
+  --color-inverse-surface: #e8e4f0;
+  --color-inverse-on-surface: #3d3a48;
+
+  /* Semantic warm accents for Insights page */
+  --color-amber: #d4a574;
+  --color-rose: #e4a0b0;
+  --color-lavender: #cdc5f0;
+  --color-warm-muted: #a08878;
+
+  /* Panel tokens for Insights page */
+  --color-panel: #111621;
+  --color-elevated: #1c2331;
+  --color-border: #2a3244;
+  --color-border-strong: #353d50;
+  --color-ink: #d8dce8;
+  --color-ink-soft: #8b92a4;
+  --color-ink-muted: #6a7188;
+  --color-ink-whisper: #4a5168;
+
+  /* Typography — Nunito: humanist rounded sans-serif, calm voice */
+  --font-headline: var(--font-nunito), system-ui, sans-serif;
+  --font-body: var(--font-nunito), system-ui, sans-serif;
+  --font-label: var(--font-nunito), system-ui, sans-serif;
+  --font-display: var(--font-nunito), system-ui, sans-serif;
+
+  /* Motion */
+  --default-transition-duration: 500ms;
+  --default-transition-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+:root { color-scheme: dark; }
+
+html, body {
+  background: var(--color-surface);
+  color: var(--color-on-surface);
+  min-height: 100vh;
+}
+
+body {
+  font-family: var(--font-body);
+  line-height: 1.7;
+  letter-spacing: 0.01em;
+}
+
+/* Film grain — soft, organic darkness texture */
+body::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 9999;
+  opacity: 0.035;
+  mix-blend-mode: overlay;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  background-size: 200px 200px;
+}
+
+.material-symbols-outlined {
+  font-family: 'Material Symbols Outlined';
+  font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+  font-size: 24px;
+  line-height: 1;
+  display: inline-block;
+  vertical-align: middle;
+}
+
+/* Glass panel — frosted midnight */
+.glass-panel {
+  background: rgba(17, 22, 33, 0.5);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+}
+
+/* Nebula gradient — warm: deep rose → amber */
+.nebula-gradient {
+  background: linear-gradient(15deg, #3d1a28 0%, #3d2810 50%, #d4a574 100%);
+}
+
+/* Tonal bleed — midnight fade */
+.tonal-bleed {
+  background: linear-gradient(to bottom, #0c1019 0%, transparent 100%);
+}
+
+/* Zen pulse — warm amber glow */
+.zen-pulse {
+  box-shadow: 0 0 20px rgba(212, 165, 116, 0.25);
+}
+
+/* Glow edge — soft luminous borders instead of sharp cuts */
+.glow-edge {
+  border: 1px solid rgba(205, 197, 240, 0.06);
+  box-shadow:
+    0 0 20px rgba(205, 197, 240, 0.03),
+    inset 0 0 20px rgba(205, 197, 240, 0.015);
+}
+
+/* Warm glow edge variant */
+.glow-edge-warm {
+  border: 1px solid rgba(212, 165, 116, 0.08);
+  box-shadow:
+    0 0 20px rgba(212, 165, 116, 0.04),
+    inset 0 0 15px rgba(212, 165, 116, 0.02);
+}

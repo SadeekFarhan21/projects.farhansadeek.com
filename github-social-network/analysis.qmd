@@ -1,0 +1,163 @@
+---
+title: "GitHub Analytics"
+subtitle: "Analyzing the GitHub Network"
+author: "Farhan Sadeek"
+date: last-modified
+format:
+  html:
+    toc: true
+  pdf:
+    toc: true
+bibliography: report/lib.bib
+link-citations: true
+---
+
+# Abstract
+
+This project analyzes the GitHub social network from the MUSAE project. The network contains 37,700 developers and 289,003 undirected edges representing mutual follower relationships. Each developer is labeled as either a Machine Learning Engineer or a Web Developer. Graph analysis is used to study connectivity, hubs, degree distributions, centrality, communities, mixing patterns, random-graph comparisons, and small-world structure.
+
+# Introduction
+
+## Motivation and Importance
+
+GitHub is one of the most important platforms for hosting and sharing open-source software. Developer profiles function as public portfolios, while follower relationships provide a useful lens for studying visibility, influence, and the organization of the software-development community.
+
+## Prior Work
+
+The data are part of the MUSAE project, which introduced multi-scale attributed node embeddings for node-classification tasks. This analysis applies classical network methods to the same developer network.
+
+## Limitations
+
+The data are a snapshot collected in June 2019 and therefore may not represent the current developer ecosystem. The binary job-title label omits many occupations, the network treats follower relationships as mutual, and the minimum-follower threshold of ten excludes less-visible developers.
+
+# Data
+
+## Source and Creation
+
+The network was collected through the GitHub API as part of the MUSAE project and is distributed through the Stanford Network Analysis Project collection. Edge data are stored in `musae_git_edges.csv`; developer labels are stored in `musae_git_target.csv`.
+
+## Dataset Overview
+
++--------------+--------------+--------------+--------------+--------------+--------------+--------------+----------------+
+| ::: minipage | ::: minipage | ::: minipage | ::: minipage | ::: minipage | ::: minipage | ::: minipage | ::: minipage   |
+| Nodes        | Edges        | Density      | Components   | Diameter     | Average path | Transitivity | Maximum k-core |
+| :::          | :::          | :::          | :::          | :::          | :::          | :::          | :::            |
++:=============+:=============+:=============+:=============+:=============+:=============+:=============+:===============+
+| ::: minipage | ::: minipage | ::: minipage | ::: minipage | ::: minipage | ::: minipage | ::: minipage | ::: minipage   |
+| Nodes        | Edges        | Density      | Components   | Diameter     | Average path | Transitivity | Maximum k-core |
+| :::          | :::          | :::          | :::          | :::          | :::          | :::          | :::            |
++--------------+--------------+--------------+--------------+--------------+--------------+--------------+----------------+
+|              |              | 4e-04        |              |              |              |              |                |
++--------------+--------------+--------------+--------------+--------------+--------------+--------------+----------------+
+
+: Global properties of the GitHub mutual-follower network.
+
+The graph is simple, undirected, sparse, and globally connected. The two developer labels are distributed as follows:
+
+  Label       Count   Percent
+  --------- ------- ---------
+  Label       Count   Percent
+  Web (0)     27961      74.2
+  MLE (1)      9739      25.8
+
+  : Distribution of developer-type labels.
+
+# Methods and Analysis
+
+## Top Hub Nodes
+
+The most connected developers are predominantly labeled Web Developers. The largest hubs include `dalinhuang99`, `nfultz`, `addyosmani`, `Bunlong`, and `gabrielpconceicao`. These nodes illustrate the highly concentrated visibility structure of the network.
+
+## Degree and Edge Distribution
+
+  Statistic            Degree
+  ----------------- ---------
+  Statistic            Degree
+  Minimum                1.00
+  First quartile         2.00
+  Median                 6.00
+  Mean                  15.33
+  Third quartile        13.00
+  90th percentile       30.00
+  99th percentile      138.01
+  Maximum             9458.00
+
+  : Degree distribution.
+
+The median degree is much smaller than the mean, and the maximum degree is 9,458. This strong right skew indicates a small set of hubs and a long tail of lightly connected developers.
+
+![Degree distribution on linear and logarithmic scales.](report/output_plots/linear_degree_histogram.pdf){#fig-degree-linear width=48%}
+
+![Degree distribution on a log-log scale.](report/output_plots/log_log_degree_histogram.pdf){#fig-degree-loglog width=48%}
+
+*Figure 1. Degree distribution on linear and logarithmic scales.*
+
+## Vertex Centrality
+
+Degree, betweenness, closeness, and eigenvector centrality reveal different forms of importance. Degree and eigenvector centrality identify highly connected and influential developers; betweenness identifies bridge-like nodes; closeness measures reachability through the network. Most measures are strongly correlated, while betweenness is comparatively distinct.
+
+![Correlation between centrality measures.](report/output_plots/centrality_correlation.pdf){#fig-centrality-correlation width=80%}
+
+*Figure 2. Correlation between centrality measures.*
+
+## Component Structure
+
+There is one connected component containing all 37,700 nodes and 289,003 edges. The graph has 350 articulation points, so a relatively small set of structurally important developers can determine whether peripheral regions remain connected.
+
+## Transitivity and Clustering
+
+The global transitivity is approximately 0.0124, while mean local transitivity is approximately 0.1934. The gap suggests that local neighborhoods can contain triangles even though the network as a whole is dominated by hub-and-spoke connectivity.
+
+![Local clustering coefficient distribution.](report/output_plots/local_clustering.pdf){#fig-local-clustering width=80%}
+
+*Figure 3. Distribution of local clustering coefficients.*
+
+## Community Detection and Graph Partitioning
+
+Fast-greedy community detection identifies 335 communities with modularity 0.3957. The partition reveals a central connected structure surrounded by many smaller communities.
+
+![Graph partitioning.](report/output_plots/graph_partition.pdf){#fig-graph-partition width=80%}
+
+![K-core size distribution.](report/output_plots/kcore_distribution.pdf){#fig-kcore width=80%}
+
+*Figures 4-5. Graph partitioning and k-core size distribution.*
+
+## Assortativity and Mixing Patterns
+
+Degree assortativity is approximately -0.075, indicating mild disassortativity: high-degree hubs tend to connect to lower-degree peripheral developers. Job-type assortativity is approximately 0.378, indicating substantial homophily between Web Developers and Machine Learning Engineers.
+
+The observed edge counts are 224,623 Web-Web edges, 44,696 Web-MLE edges, and 19,684 MLE-MLE edges. After accounting for the number of possible pairs, within-group edge probabilities remain higher than the cross-group probability, supporting genuine professional homophily rather than a simple group-size artifact.
+
+## Comparison with Random Graph Models
+
+The observed network has mean degree 15.33, degree standard deviation 80.79, transitivity 0.0124, and average path length 3.24. An Erdős-Rényi graph with the same size and density has transitivity 0.0004 and average path length 4.14. A configuration model preserves the degree sequence and produces similar path length, while Watts-Strogatz and Barabási-Albert models highlight the roles of clustering and preferential attachment.
+
+## Small-World Assessment
+
+Using the report's comparison with the Erdős-Rényi baseline, the clustering ratio is approximately 30.2 and the path-length ratio is approximately 0.78. The resulting small-world score is
+
+$$\sigma = \frac{C_{obs}/C_{ER}}{L_{obs}/L_{ER}} \approx \frac{30.2}{0.78} \approx 38.7.$$
+
+Because $\sigma \gg 1$, the network exhibits small-world structure: developers are separated by only a few intermediaries, while local neighborhoods are substantially more clustered than a comparable random graph.
+
+# Results
+
+The network is a simple, sparse, globally connected graph with a highly skewed degree distribution. A small elite of hubs dominates connectivity. The network also shows small-world behavior, mild negative degree assortativity, and strong professional homophily.
+
+# Discussion
+
+The network's articulation points and high-degree hubs create potential gatekeepers. Removing important hubs could fragment otherwise global connectivity. Professional homophily may also produce echo chambers in which developers preferentially connect to others with similar job types. The observed structure is broadly consistent with preferential attachment and the accumulation of attention by established developers.
+
+# Future Work
+
+Future analysis should use newer data, especially given the rapid growth of machine learning and generative AI. Link prediction could model how the community grows, while exponential random graph models could test higher-order structural mechanisms. More complete job and activity attributes would also provide a richer representation of developer identity and interaction.
+
+# References
+
+1.  Hague, D. *Global GitHub: Mapping the utilization of open source software by organizations*. Center for Security and Emerging Technology, 2022.
+
+2.  Kolaczyk, E. D. and Csárdi, G. *Statistical Analysis of Network Data with R*. Springer, 2020.
+
+3.  Rozemberczki, B., Allen, C., and Sarkar, R. "MUSAE: Multi-scale attributed node embedding." *Applied Network Science*, 2021.
+
+4.  Upwork. "Will AI replace web developers?" 2025.

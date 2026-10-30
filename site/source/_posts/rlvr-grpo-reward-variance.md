@@ -1,7 +1,7 @@
 ---
 title: "GRPO Only Learns When the Rewards Disagree"
 tab_title: GRPO
-code: https://github.com/SadeekFarhan21/projects/tree/main/math-rlvr
+code: https://github.com/SadeekFarhan21/projects.farhansadeek.com/tree/main/math-rlvr
 date: 2026-09-13 13:43:19
 description: "An RLVR pipeline on Qwen2.5-0.5B-Instruct, published before the training run. GRPO learns from the spread of rewards rather than their level, and four bugs never raised an exception."
 tags:
@@ -203,7 +203,7 @@ The consequences follow from the mechanism rather than from the 5%. Larger GPUs 
 
 ### Conclusions
 
-Had we reported only that the pipeline was built, this post would have described a working RLVR stack. The honest version is that the stack is built and untested against its own objective, and that everything of value so far came out of it refusing to work.
+The stack is built but not yet tested against its own objective, and everything of value so far came out of it refusing to work.
 
 - **Reward variance is the metric to watch, not reward mean.** Printing $\sigma$ every batch is ten lines and converts the most likely failure from invisible to obvious.
 - **Too-easy and too-hard are the same observation from outside.** Any diagnosis that checks only whether reward is increasing cannot separate them, and they have opposite fixes.
@@ -214,7 +214,7 @@ Had we reported only that the pipeline was built, this post would have described
 
 The open question is whether 300 steps on a 500M model moves $\text{pass@}1$ measurably at all. The frame we will judge it against is the $\text{pass@}k \gg \text{pass@}1$ gap. A model that solves a problem 1 time in 8 already contains the capability, and RL's job is to shift probability mass onto reasoning it can already occasionally produce rather than to teach it something new<sup>[[16]](#ref-16)</sup>. If the gap does not narrow, the report will say that it did not.
 
-Find the code at [github.com/SadeekFarhan21/projects/math-rlvr](https://github.com/SadeekFarhan21/projects/tree/main/math-rlvr).
+Find the code at [github.com/SadeekFarhan21/projects.farhansadeek.com/math-rlvr](https://github.com/SadeekFarhan21/projects.farhansadeek.com/tree/main/math-rlvr).
 
 ## What I Would Change
 

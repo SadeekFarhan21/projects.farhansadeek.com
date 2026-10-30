@@ -1,0 +1,7 @@
+model,auc
+stacked_logistic,0.9148161336669819
+preferential_attachment,0.908649929808072
+adamic_adar,0.8260291408747501
+common_neighbors,0.8203915320697789
+jaccard,0.785673199704266
+same_ml_target,0.6141349480968858

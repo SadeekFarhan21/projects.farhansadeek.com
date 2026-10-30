@@ -1,0 +1,13 @@
+{
+	"folders": [
+		{
+			"path": "../DataFest-2024"
+		}
+	],
+	"settings": {
+		"java.debug.settings.onBuildFailureProceed": true,
+		"files.associations": {
+			"iostream": "cpp"
+		}
+	}
+}

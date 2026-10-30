@@ -1,0 +1,9 @@
+node_modules/
+.astro/
+dist/
+.env
+.env.*
+.DS_Store
+supabase/.temp/
+firebase-debug.log
+public/data/

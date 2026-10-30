@@ -1,0 +1,66 @@
+# Reusable workflow: refreshes one or more judges and commits the result.
+# Called by the per-platform workflows (refresh-codeforces.yml, …) and by
+# refresh-data.yml (all platforms, used by the site's "Refresh now" button).
+name: Refresh platform data
+
+on:
+  workflow_call:
+    inputs:
+      platforms:
+        description: Comma-separated platform keys (codeforces, atcoder, leetcode, codechef, cses, kattis, uva). Empty = all.
+        required: false
+        default: ""
+        type: string
+      full:
+        description: Paginate the entire history instead of stopping at known rows
+        required: false
+        default: false
+        type: boolean
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          package-manager-cache: false
+      - name: Install dependencies
+        run: corepack pnpm install --frozen-lockfile
+      - name: Refresh data
+        env:
+          # Handles are GitHub repository variables (Settings → Secrets and
+          # variables → Actions → Variables); cookies are repository secrets.
+          CODEFORCES_HANDLE: ${{ vars.CODEFORCES_HANDLE }}
+          ATCODER_HANDLE: ${{ vars.ATCODER_HANDLE }}
+          LEETCODE_HANDLE: ${{ vars.LEETCODE_HANDLE }}
+          CODECHEF_HANDLE: ${{ vars.CODECHEF_HANDLE }}
+          KATTIS_USERNAME: ${{ vars.KATTIS_USERNAME }}
+          CODECHEF_API_URL: ${{ vars.CODECHEF_API_URL }}
+          LEETCODE_SESSION: ${{ secrets.LEETCODE_SESSION }}
+          CSES_SESSION: ${{ secrets.CSES_SESSION }}
+          KATTIS_COOKIE: ${{ secrets.KATTIS_COOKIE }}
+          UVA_USERNAME: ${{ secrets.UVA_USERNAME }}
+          UVA_USER_ID: ${{ secrets.UVA_USER_ID }}
+          PLATFORMS: ${{ inputs.platforms }}
+          REFRESH_CSES: "true" # runs are daily/manual now, so no need to throttle CSES
+        run: corepack pnpm refresh -- ${{ inputs.full && '--full' || '' }}
+      - name: Mark solved Halim book problems
+        run: corepack pnpm halim:solved
+      - name: Build YouKn0wWho topic list
+        run: corepack pnpm youkn0wwho:build
+      - name: Sync AtCoder Topicwise categories
+        # Upstream adds new contests weekly; a failed fetch keeps the last synced lists.
+        continue-on-error: true
+        run: corepack pnpm atcoder-topicwise:sync
+      - name: Build AtCoder Topicwise list
+        run: corepack pnpm atcoder-topicwise:build
+      - name: Commit if changed
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add data/submissions.json data/halim-book.json data/halim-book.csv data/youkn0wwho.json data/atcoder-topicwise-source.json data/atcoder-topicwise.json data/kattis-titles.json
+          git diff --cached --quiet || git commit -m "chore: refresh submission data${{ inputs.platforms && format(' ({0})', inputs.platforms) || '' }}"
+          git pull --rebase origin main
+          git push

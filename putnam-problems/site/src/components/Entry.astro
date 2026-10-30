@@ -1,0 +1,210 @@
+---
+import { CAT_TO_SUBJECT, type Entry } from "../lib/data";
+
+interface Props {
+  entry: Entry;
+  index: number;
+}
+
+const { entry, index } = Astro.props;
+// Stagger only the first screenful; beyond that the delay is wasted motion.
+const delay = index < 12 ? `${index * 34}ms` : "0ms";
+const pips = Array.from({ length: 10 }, (_, i) => i < entry.difficulty);
+---
+
+<article
+  class="entry"
+  style={`animation-delay:${delay}`}
+  data-year={entry.year}
+  data-slot={entry.problem}
+  data-difficulty={entry.difficulty}
+  data-categories={entry.category.join("|")}
+  data-haystack={entry.haystack}
+  id={entry.id}
+>
+  <div class="entry-margin">
+    <a class="entry-permalink" href={`/#${entry.id}`} aria-label={`${entry.year} ${entry.problem} in the full archive`}>
+      <span class="entry-slot">{entry.problem}</span>
+      <span class="entry-year">{entry.year}</span>
+    </a>
+
+    <button
+      class="solve"
+      type="button"
+      data-solve
+      aria-pressed="false"
+      aria-label={`Mark ${entry.year} ${entry.problem} solved`}
+    >
+      <span class="solve-box" aria-hidden="true"></span>
+      <span class="solve-text">Solved</span>
+    </button>
+
+    <button
+      class="copy-tex"
+      type="button"
+      data-copy-tex
+      aria-label={`Copy the LaTeX for ${entry.year} ${entry.problem}`}
+    >
+      <span class="copy-text">Copy TeX</span>
+    </button>
+  </div>
+
+  <div class="entry-body">
+    <div class="entry-tags">
+      {
+        entry.category.map((c) => {
+          const s = CAT_TO_SUBJECT.get(c);
+          return (
+            <a
+              class="tag"
+              href={`/subject/${s?.slug ?? ""}`}
+              style={`color:var(${s?.css ?? "--ink-mid"})`}
+            >
+              {s?.label ?? c}
+            </a>
+          );
+        })
+      }
+      <span class="diff" title={`Difficulty ${entry.difficulty} of 10`}>
+        <span class="diff-bar" aria-hidden="true">
+          {pips.map((on) => <i class={on ? "on" : ""} />)}
+        </span>
+        <span>{entry.difficulty}/10</span>
+      </span>
+    </div>
+
+    <div class="statement" data-tex={entry.statement} title="Click to copy LaTeX" set:html={entry.html} />
+  </div>
+</article>
+
+<script>
+  // Clicking a statement (or its margin button) copies the original LaTeX
+  // source, not the rendered text. Delegated from the document so it covers
+  // every page that lists entries, and runs once however many entries there are.
+  const flash = (el: HTMLElement, label: string) => {
+    const text = el.querySelector<HTMLElement>(".copy-text");
+    if (!text) return;
+    el.dataset.copied = "true";
+    text.textContent = label;
+    clearTimeout(Number(el.dataset.timer));
+    el.dataset.timer = String(
+      setTimeout(() => {
+        delete el.dataset.copied;
+        text.textContent = "Copy TeX";
+      }, 1400),
+    );
+  };
+
+  document.addEventListener("click", async (e) => {
+    const target = e.target as HTMLElement;
+    const fromButton = target.closest("[data-copy-tex]");
+    const statement = target.closest<HTMLElement>(".statement");
+    if (!fromButton && !statement) return;
+    // Let links inside a statement behave as links, and let a drag-select of
+    // part of the statement stay a selection rather than become a copy.
+    if (!fromButton && (target.closest("a") || String(window.getSelection() ?? "") !== "")) return;
+
+    const entry = target.closest<HTMLElement>(".entry");
+    const tex = entry?.querySelector<HTMLElement>(".statement")?.dataset.tex;
+    const btn = entry?.querySelector<HTMLElement>("[data-copy-tex]");
+    if (!entry || tex === undefined || !btn) return;
+
+    try {
+      await navigator.clipboard.writeText(tex);
+      flash(btn, "Copied");
+      entry.dataset.copied = "true";
+      setTimeout(() => delete entry.dataset.copied, 600);
+    } catch {
+      flash(btn, "Copy failed");
+    }
+  });
+</script>
+
+<style>
+  /* The margin slot doubles as the problem's permalink into the full archive,
+     which is the only route back from the filtered lists. */
+  .entry-permalink {
+    color: inherit;
+    text-decoration: none;
+    display: block;
+  }
+
+  .entry-permalink:hover .entry-slot { color: var(--accent); }
+
+  .solve {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    min-height: 24px;
+    margin-top: 0.6rem;
+    padding: 0;
+    background: none;
+    border: 0;
+    font-family: var(--font-mono);
+    font-size: 0.62rem;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--ink-mid);
+    cursor: pointer;
+    /* Hidden until the row is approached, so 492 of these do not shout. */
+    opacity: 0;
+    transition: opacity 0.14s, color 0.14s;
+  }
+
+  .copy-tex {
+    display: flex;
+    align-items: center;
+    min-height: 24px;
+    margin-top: 0.2rem;
+    padding: 0;
+    background: none;
+    border: 0;
+    font-family: var(--font-mono);
+    font-size: 0.62rem;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--ink-mid);
+    cursor: pointer;
+    opacity: 0;
+    transition: opacity 0.14s, color 0.14s;
+  }
+
+  .entry:hover .copy-tex,
+  .copy-tex:focus-visible,
+  .copy-tex[data-copied] {
+    opacity: 1;
+  }
+
+  .copy-tex:hover,
+  .copy-tex[data-copied] { color: var(--accent); }
+
+  .statement { cursor: copy; transition: background-color 0.3s; }
+  .entry[data-copied] .statement { background: var(--accent-soft); }
+
+  .solve-box {
+    width: 11px;
+    height: 11px;
+    flex: 0 0 11px;
+    border: 1px solid currentColor;
+    border-radius: 2px;
+  }
+
+  .entry:hover .solve,
+  .solve:focus-visible,
+  .entry[data-solved="true"] .solve {
+    opacity: 1;
+  }
+
+  .solve:hover { color: var(--accent); }
+
+  .entry[data-solved="true"] .solve { color: var(--accent); }
+
+  .entry[data-solved="true"] .solve-box {
+    background: var(--accent);
+    box-shadow: inset 0 0 0 2px var(--paper);
+  }
+
+  /* A solved problem stays readable but recedes. */
+  .entry[data-solved="true"] .entry-body { opacity: 0.55; }
+  .entry[data-solved="true"]:hover .entry-body { opacity: 1; }
+</style>

@@ -1,0 +1,28 @@
+{
+  "name": "columbia-sis-mcp",
+  "version": "0.1.0",
+  "description": "Playwright-backed MCP server for parsing Columbia Directory of Classes pages.",
+  "type": "module",
+  "packageManager": "pnpm@10.14.0",
+  "bin": {
+    "columbia-sis-mcp": "./src/server.js"
+  },
+  "scripts": {
+    "start": "node src/server.js",
+    "scrape": "node src/scrape.js",
+    "scrape:sample": "node src/scrape.js COMS Fall2026",
+    "scrape:all": "node src/all.js Fall2026",
+    "vergil": "node src/vergil.js",
+    "sample:subjects": "node src/cli.js subjects C",
+    "sample:courses": "node src/cli.js courses COMS Fall2026 --limit 5",
+    "sample:section": "node src/cli.js section https://doc.sis.columbia.edu/subj/COMS/W3134-20263-001/"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.13.0",
+    "playwright": "^1.53.1",
+    "zod": "^3.25.67"
+  },
+  "devDependencies": {
+    "prettier": "^3.8.4"
+  }
+}

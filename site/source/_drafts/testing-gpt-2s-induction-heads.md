@@ -1,7 +1,7 @@
 ---
 layout: post
 title: "Testing GPT-2's Induction Heads and the Backups Behind Them"
-code: https://github.com/SadeekFarhan21/projects/tree/main/tiny-circuits
+code: https://github.com/SadeekFarhan21/projects.farhansadeek.com/tree/main/tiny-circuits
 tags:
   - interpretability
   - transformers
@@ -21,13 +21,13 @@ That last result is the one the first post warned about. It does not undo the ci
 
 <figure class="excal" data-diagram="tiny-circuits-2-recovered-circuit"><a href="/img/diagrams/tiny-circuits-2-recovered-circuit.webp" class="excal-link" aria-label="Open the diagram full size"><img src="/img/diagrams/tiny-circuits-2-recovered-circuit.webp" alt="A left-to-right circuit diagram of GPT-2 small in which the effective embedding feeds a layer 4 previous-token head, L4H11, that supplies the keys of five induction heads in layers 5 to 7 while MLP4 partly compensates, copy suppression heads L10H7 and L11H10 oppose and backup heads run in parallel into the logits, with a callout that the textbook layer 0 previous-token head is absent and a badge that patching all five recovers 0.81." width="2400" height="1555" loading="lazy" decoding="async"></a></figure>
 
-Everything runs on an M4 Pro laptop through MPS, with the same inputs as experiment 01. Every number below comes from the saved results of these runs unless the text says otherwise.
+Everything runs on an M4 Pro laptop through MPS, with the same inputs as experiment 01.
 
 *Reading note.* The argument runs in the order of the experiments, from what the heads attend to, through what causes the output, to what the weights say and what removal costs. The surprises are in [The Upstream Head](#the-upstream-head), the L5H5 result in [The Weights](#the-weights), and [Necessity](#necessity). Skip to [Conclusions](#conclusions) for the claims and their limits.
 
 ## What the First Post Left Open
 
-The claimed mechanism has two heads and one edge<sup>[[2]](#ref-2)</sup><sup>[[3]](#ref-3)</sup>. A previous-token head writes "the token before me was A" into each position. An induction head in a later layer uses that signature as its key, so a query for token A finds the position right after the last A, and its OV circuit copies the token there into the output. Experiment 01 tested only whether heads exist whose attention lands on the induction target. Experiment 03 tests causation by patching, experiments 03 and 04 test the upstream edge, experiment 05 reads the mechanism from the weights, and experiment 06 tests necessity by ablation. The first post's plan put path patching under experiment 04. It ended up in 03, next to the other patching runs.
+The claimed mechanism has two heads and one edge<sup>[[2]](#ref-2)</sup><sup>[[3]](#ref-3)</sup>. A previous-token head writes "the token before me was A" into each position. An induction head in a later layer uses that signature as its key, so a query for token A finds the position right after the last A, and its OV circuit copies the token there into the output. Experiment 01 tested only whether heads exist whose attention lands on the induction target. Experiment 03 tests causation by patching, experiments 03 and 04 test the upstream edge, experiment 05 reads the mechanism from the weights, and experiment 06 tests necessity by ablation.
 
 ## Inputs and Metrics
 
@@ -241,11 +241,7 @@ Third, the mechanism is described for one edge and one layer of heads. We have n
 
 Fourth, "the induction circuit" now needs a looser definition than the one the first post started with. A strict circuit, two heads and one edge that are together sufficient and necessary, does not describe GPT-2 small. A redundant population of induction and copying heads, fed by one previous-token head and opposed by a few copy suppression heads, does. That description fits every result here, and it is harder to test to the same standard.
 
-## Instrument Notes
-
-**Numbers Printed but Not Saved with the Results**
-
-Most numbers above are read from the saved result tables. A few are only printed to the console during the runs, and so are recorded in the project's notes rather than in a results table. They are the clean and corrupted log probabilities (-0.22 and -12.36), the joint patching of all five induction heads (0.81 recovered, 0.77 lost), L4H11's effect with MLP4 held clean (0.26) and under zero ablation (0.02), and the random-$k$ ablation curve (-12.92 at $k = 1$, -12.67 at $k = 10$, -12.66 at $k = 20$). To check them we reran experiments 03, 04 and 06 in a separate copy of the project. The reruns reproduced every saved result byte for byte and printed these same values. Saving them alongside the rest is a small change to experiments 03 and 06.
+## Method Notes
 
 **Why Mean Ablation, and Why It Differs from Zero Ablation**
 
@@ -255,7 +251,7 @@ The sweep shows why this matters. Under zero ablation, several layer 0 heads cha
 
 **The MPS Warning**
 
-TransformerLens<sup>[[11]](#ref-11)</sup> warns that the MPS backend may produce silently incorrect results with the installed PyTorch version. The consistency checks inside these runs argue against a problem here. Layer 0 residual patching returns exactly 1.0 and 0.0, the attention buckets in experiment 02 reproduce the experiment 01 scores to every printed digit, and the top-1 and top-5 mean-ablation rows reproduce the single-head and five-head rows exactly. The reruns above were also on MPS, so they show determinism, not correctness. A CPU rerun would settle it and has not been done.
+TransformerLens<sup>[[11]](#ref-11)</sup> warns that the MPS backend may produce silently incorrect results. The consistency checks inside the experiments argue against a problem here. Layer 0 residual patching returns exactly 1.0 and 0.0, the attention buckets in experiment 02 reproduce the experiment 01 scores to every printed digit, and the top-1 and top-5 mean-ablation rows reproduce the single-head and five-head rows exactly. Those checks show internal consistency rather than correctness, and a run on CPU would settle it.
 
 ## Conclusions
 
@@ -269,7 +265,7 @@ The first post found five heads that look in the right place. This one asked whe
 - Rank by induction score does not predict rank by effect. L5H5 has the top score and is the weakest copier, direct writer and single-head patch of the five.
 - Removing the five heads costs 33% of the ICL score, against about 1% for random heads. Removing the top 20 by induction score costs over 90%. GPT-2 small has many backup induction heads, and two copy suppression heads, L10H7 and L11H10, work against all of them.
 
-Find the code at [github.com/SadeekFarhan21/projects/tiny-circuits](https://github.com/SadeekFarhan21/projects/tree/main/tiny-circuits).
+Find the code at [github.com/SadeekFarhan21/projects.farhansadeek.com/tiny-circuits](https://github.com/SadeekFarhan21/projects.farhansadeek.com/tree/main/tiny-circuits).
 
 ## References
 

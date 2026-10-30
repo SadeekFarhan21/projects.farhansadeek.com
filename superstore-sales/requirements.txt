@@ -1,0 +1,11 @@
+pandas
+plotly
+streamlit
+pandas
+streamlit
+plotly
+streamlit-analytics
+yfinance
+xlrd
+seaborn
+matplotlib

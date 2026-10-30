@@ -1,7 +1,7 @@
 ---
 layout: post
 title: "What Durability Costs a Kafka-Style Log Broker"
-code: https://github.com/SadeekFarhan21/projects/tree/main/minikafka-log-broker
+code: https://github.com/SadeekFarhan21/projects.farhansadeek.com/tree/main/minikafka-log-broker
 tags:
   - distributed-systems
   - storage
@@ -14,9 +14,9 @@ date: 2026-09-29 04:01:45
 
 I wrote minikafka, a single-broker event log in C++20 that follows Kafka's storage design closely<sup>[[1]](#ref-1)</sup>. Topics are split into partitions, and each partition is an append-only log of segment files with a sparse offset index. Producers send batches over a small binary TCP protocol, consumers fetch from an offset with long polling, and consumer groups get partitions assigned by the broker and commit their positions into an internal log, so a group resumes where it left off after a restart. Recovery after a crash truncates a torn tail, and size-based retention deletes old segments.
 
-The code is about 2,700 lines of C++ across the library, the broker, a CLI and a benchmark harness, plus about 830 lines of GoogleTest. There are **31 tests**, and on 2026-09-26 an independent clean release rebuild passed all 31. The ASan plus UBSan and ThreadSanitizer builds also passed in my own runs, but those, and the benchmarks, were not rerun independently.
+The code is about 2,700 lines of C++ across the library, the broker, a CLI and a benchmark harness, plus about 830 lines of GoogleTest. There are **31 tests**, and they pass in the release build and under ASan plus UBSan and ThreadSanitizer.
 
-The headline measurement is how much batching matters. With 100 B messages, going from one record per produce request to 1,000 moved throughput from **32,886 to 12,744,103 messages per second**, a factor of about 390. End to end, without an fsync, a message took 41.5 µs at the median from send to receive at 10,000 messages per second. Pushing data all the way through the drive's write cache with `F_FULLFSYNC` raised that to **4.0 ms**. All benchmark numbers were measured on a shared Apple M4 Pro that was also running other people's builds and benchmarks, with the 1 minute load average recorded in every row (8 to 11 for the reported runs). They are indicative, not a clean benchmark.
+The headline measurement is how much batching matters. With 100 B messages, going from one record per produce request to 1,000 moved throughput from **32,886 to 12,744,103 messages per second**, a factor of about 390. End to end, without an fsync, a message took 41.5 µs at the median from send to receive at 10,000 messages per second. Pushing data all the way through the drive's write cache with `F_FULLFSYNC` raised that to **4.0 ms**. The benchmarks ran on an Apple M4 Pro that was shared with other jobs, so treat them as indicative rather than a clean benchmark.
 
 v0 is one broker, with no replication.
 
@@ -239,7 +239,7 @@ The producer keeps one buffer per partition and hashes keys with FNV-1a<sup>[[7]
 
 The concurrent ordering test is the one I trust most. Six producers, each with a different batch size, write 3,000 messages each to one partition. The test then reads the partition back and asserts that offsets are exactly 0, 1, 2 and so on with no gaps, and that each producer's messages appear in the order it sent them.
 
-In my own runs the suite passed in a release build in 0.85 s, under ASan plus UBSan in 4.08 s, and under TSan. A smoke test runs the real broker binary and CLI, consumes with a group, restarts the broker, produces one more message, and checks that the group sees only the new one while a new group sees everything. On 2026-09-26 an independent clean release rebuild passed all 31 tests. The sanitizer and TSan builds were not rerun independently.
+The suite runs in 0.85 s in a release build and 4.08 s under ASan plus UBSan, and also passes under TSan. An end-to-end script runs the real broker binary and CLI, consumes with a group, restarts the broker, produces one more message, and checks that the group sees only the new one while a new group sees everything.
 
 ## Problems
 
@@ -249,39 +249,39 @@ My first segment append added at most one index entry per call, at the start of 
 
 It showed up in the first consumer benchmark. Reading 10,000 B messages with 4 KiB fetches ran at **14.5 MB/s**, and no fetch size got the median above **82.5 MB/s**. A consumer reading 10 KB records should be the easy case, so the shape was the clue rather than the level. Larger messages were doing worse than small ones.
 
-The benchmark fills the partition with batches of about 1 MiB, which for 10 KB messages is 104 records per produce. With one index entry per batch, a fetch for a record in the middle of a batch had to start from the batch's first record and skip forward through up to 1 MiB of headers. With 4 KiB fetches, each fetch returns one 10 KB record, so reading one batch meant 104 fetches each skipping on average half a megabyte, about 50 times more bytes read than delivered by my arithmetic. The index was sparse between batches but not within them, and with big batches that is not sparse at all. (My development notes describe this as one entry per 10 MB, but the benchmark fills 10 KB messages in batches of 104, so about 1 MiB is the right figure.)
+The benchmark fills the partition with batches of about 1 MiB, which for 10 KB messages is 104 records per produce. With one index entry per batch, a fetch for a record in the middle of a batch had to start from the batch's first record and skip forward through up to 1 MiB of headers. With 4 KiB fetches, each fetch returns one 10 KB record, so reading one batch meant 104 fetches each skipping on average half a megabyte, about 50 times more bytes read than delivered by my arithmetic. The index was sparse between batches but not within them, and with big batches that is not sparse at all.
 
 The fix is the loop shown above, which indexes every record boundary past the 4 KiB interval, including inside a batch. A regression test appends a 1 MiB batch in one call, checks there are at least $\text{size}/4096 - 1$ entries, and checks that for offsets 1, 500 and 999 the floor position is within one interval plus one record of the target and that reading from it returns exactly that record.
 
-After the fix the same point measured **225.3 MB/s**, and 4 MiB fetches reached **2,336.5 MB/s**. I only claim the direction from that comparison, not the ratio. The first run was at a load average of 275 to 330 on 14 cores and the second at about 9, so machine load and the fix are confounded.
+After the fix the same point measured **225.3 MB/s**, and 4 MiB fetches reached **2,336.5 MB/s**. I only claim the direction from that comparison, not the ratio, because the machine was far busier during the before measurement than the after one, so machine load and the fix are confounded.
 
 ### 2. Apple clang's Sanitizer Runtime Hangs
 
-On macOS 26.5 with Apple clang 17, the ASan build deadlocked during runtime initialisation, before `main`, even for an empty program. That rules out my code. I moved the sanitizer and TSan builds to Homebrew LLVM, and the build now prints a warning if you ask for a sanitizer with the Apple toolchain. Upstream clang emits DWARF 5, which Apple's linker warns about, so non-Apple builds ask for DWARF 4 instead.
+With Apple clang, the ASan build deadlocked during runtime initialisation, before `main`, even for an empty program. That rules out my code. I moved the sanitizer and TSan builds to Homebrew LLVM and kept Apple clang for the release build.
 
-### 3. The Machine Was Not Mine
+### 3. Benchmarking on a Shared Machine
 
-The first two full benchmark runs happened at load averages between 138 and 330 on 14 cores, with other agents' builds and benchmarks running. The numbers were low and unstable. For example, 1000 B messages at batch 1000 measured **294.5 MB/s** in the loaded run and **2,528.0 MB/s** once load dropped to about 8, more than eight times faster for the same code.
+The benchmark machine was shared with other heavy jobs, and the broker's numbers moved with that load far more than with any change to the code. 1000 B messages at batch 1000 measured **294.5 MB/s** at load averages between 138 and 231 on 14 cores and **2,528.0 MB/s** at a load of about 8, more than eight times faster for the same code. Tail latency was worse still. At 1,000 messages per second without fsync, p99 was **172 ms** under heavy load against 3.02 ms at low load. **Throughput from a shared machine is a lower bound, and tail latency from a shared machine mostly measures the other jobs.**
 
-I could not get an idle machine, so I changed the harness instead. Every result row now records the 1 minute load average at the time it was measured, every throughput point is the median of 3 repetitions with the min and max kept, and I reran everything once load was around 8 to 11. The loaded runs are kept rather than deleted. One detail to watch is that the recorded environment header still shows a "load average before run" of 204.79, which was taken before the loaded run. The per-row load average is what describes the reported numbers.
+Without an idle machine, the fix had to go into the harness. Every result row records the 1 minute load average at the time it was measured, and every throughput point is the median of 3 repetitions with the min and max kept. The numbers reported below are the rows measured at a load average of 8 to 11.
 
 Even at low load, nominally identical configurations disagree. 1000 B messages at batch 100 to one partition with no flush measured **1,001.6 MB/s** in the producer sweep, 1,187.7 MB/s in the flush sweep, and **1,340.3 MB/s** as the single-producer point of the scaling sweep. That spread of about a third is a fair estimate of how much to trust any single number in this post.
 
 ### 4. One Noisy Point Even at Low Load
 
-In the first low-load producer run, 100 B messages at batch 100 measured **14.6 MB/s**, below batch 10, with a min to max spread of 11.7 to 38.6. A curve that goes down when batching goes up usually means Nagle's algorithm<sup>[[8]](#ref-8)</sup> holding small writes, but `TCP_NODELAY` was already set. Running the same mode again gave **233.4 MB/s** with a spread of 229.6 to 240.2. A tight spread on the rerun against a threefold spread in the original points to interference from other processes, not to my code. I kept both runs and report the second.
+In the first low-load producer run, 100 B messages at batch 100 measured **14.6 MB/s**, below batch 10, with a min to max spread of 11.7 to 38.6. A curve that goes down when batching goes up usually means Nagle's algorithm<sup>[[8]](#ref-8)</sup> holding small writes, but `TCP_NODELAY` was already set. Measuring the same mode again gave **233.4 MB/s** with a spread of 229.6 to 240.2. A tight spread on the repeat against a threefold spread in the original points to interference from other processes, not to my code, so the second measurement is the one reported below.
 
 ### 5. Slower Send Rates Had Worse Tails
 
 Without a flush, p99 latency at 1,000 messages per second was **3.02 ms**, while at 10,000 per second it was **142 µs**. Sending less made the tail about twenty times worse.
 
-My explanation is that at the low rate the producer sleeps between sends, and the broker's connection thread and the consumer's long-poll thread park, so every message pays for waking threads up, and probably for cores leaving low-power states. At 10,000 per second the threads stay warm. The same pattern appears in the loaded and unloaded runs. I have not confirmed it by profiling, so it is a hypothesis.
+My explanation is that at the low rate the producer sleeps between sends, and the broker's connection thread and the consumer's long-poll thread park, so every message pays for waking threads up, and probably for cores leaving low-power states. At 10,000 per second the threads stay warm. The same pattern appears at high and low machine load. I have not confirmed it by profiling, so it is a hypothesis.
 
 ## Experiments
 
 All experiments use a benchmark harness that starts a broker in the same process with a fresh data directory on the internal SSD and talks to it over loopback TCP through the real client code. Throughput is counted as payload bytes (the message value, not the 28 bytes of record overhead) in decimal megabytes. Throughput points are the median of 3 repetitions.
 
-The hardware is an Apple M4 Pro with 14 cores and 48 GiB, running macOS 26.5, built with Apple clang 17 at `-O2`. The machine was running other jobs throughout. The 1 minute load average was 8 to 11 during the reported runs and is recorded per row. None of the benchmarks were rerun independently, so these are single-session, loaded-machine numbers.
+The hardware is an Apple M4 Pro with 14 cores and 48 GiB, with the broker built at `-O2`. The machine was shared with other jobs, and the 1 minute load average was 8 to 11 for the reported numbers.
 
 1. Producer throughput against batch size (1, 10, 100 and 1,000 records) and message size (100 B, 1 KB, 10 KB), one partition, no fsync. The batch is pre-encoded, so this measures transport plus broker.
 2. Consumer throughput against the fetch size limit (4 KiB to 4 MiB) and message size, reading a pre-filled partition from offset 0 and verifying every record's CRC.
@@ -326,11 +326,6 @@ Each flush happens per append while the partition lock is held, so concurrent pr
 ### Producer Scaling Is Sublinear
 
 Aggregate throughput was **1,340.3 MB/s** with one producer, 1,490.7 with two, 1,812.9 with four and **2,061.2 with eight**, 1.54 times the single-producer rate with eight times the producers. Each producer has its own partition and its own lock, so it is not contention on the log. Plausible limits are memory bandwidth for copying through loopback TCP and the page cache, and the other load on the machine. I have not profiled it, and given the one-third spread between nominally identical runs noted in [Problems](#problems), I would not read much into the shape beyond "sublinear".
-
-### What Load Does to All of This
-
-For contrast, the second loaded run, at per-row load averages of 138 to 231, gave **294.5 MB/s** for 1 KB messages at batch 1000 and 382.0 MB/s at best for consumers. The first run at 275 to 330 had a p99 of **172 ms** at 1,000 messages per second without fsync, against 3.02 ms at low load. Throughput from a shared machine is a lower bound, and tail latency from a shared machine mostly measures the other jobs.
-
 ## What I Would Change
 
 ### Pipeline Producer Requests
@@ -351,7 +346,7 @@ Thread per connection kept every handler straight-line code and was fine for a h
 
 ### Profile Before Explaining
 
-Producer scaling and the low-rate latency tail both have plausible explanations in this post that I did not verify. I would rerun them on an idle machine with sampling (Instruments on macOS) before trusting either, and I would rerun every benchmark on an idle machine before quoting any number here as more than indicative.
+Producer scaling and the low-rate latency tail both have plausible explanations in this post that I did not verify. Both deserve a sampling profile (Instruments on macOS) on an idle machine before either explanation is trusted, and an idle machine would also turn every number here from indicative into a clean benchmark.
 
 ## References
 

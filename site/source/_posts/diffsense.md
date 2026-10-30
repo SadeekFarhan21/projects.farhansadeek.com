@@ -2,7 +2,7 @@
 layout: post
 title: "The Encoder Sets the Scale of Commit Drift"
 tab_title: DiffSense
-code: https://github.com/SadeekFarhan21/projects/tree/main/diffsense
+code: https://github.com/SadeekFarhan21/projects.farhansadeek.com/tree/main/diffsense
 date: 2025-06-21 13:25:13
 tags:
   - git
@@ -17,7 +17,7 @@ description: >-
 
 DiffSense is a web app and VS Code extension for asking questions about a git repository's history. Jalen Francis, Jayson Clark and I built it in two days (June 21–22, 2025) at the AI Berkeley Hackathon. It clones a repository, scores each commit for "semantic drift" by embedding its diff and message, flags likely breaking changes by comparing function and class signatures, and puts a chat on top that can call Claude<sup>[[1]](#ref-1)</sup>. Jalen built the backend, Jayson built most of the frontend and the extension, and I built the mobile layout and the markdown rendering in the chat.
 
-Afterwards I ran the analysis on DiffSense's own history, and the main lesson is that **a drift score only means something next to the encoder that produced it**. Over the same 17 commits, the same formula gives a median drift of **0.0242** with CodeBERT<sup>[[2]](#ref-2)</sup> and **0.679** with MiniLM<sup>[[3]](#ref-3)</sup>, and the two ranges never overlap. The signature-based breaking-change detector caught all 8 real breaks in 14 small cases I wrote and labeled.
+Pointed at DiffSense's own history, the analysis teaches one main lesson, that **a drift score only means something next to the encoder that produced it**. Over the same 17 commits, the same formula gives a median drift of **0.0242** with CodeBERT<sup>[[2]](#ref-2)</sup> and **0.679** with MiniLM<sup>[[3]](#ref-3)</sup>, and the two ranges never overlap. The signature-based breaking-change detector caught all 8 real breaks in 14 small cases I wrote and labeled.
 
 ## Why It Matters
 
@@ -25,7 +25,7 @@ The pitch is to point DiffSense at a repository and see where it changed and whi
 
 Drift was the part I wanted to understand. A commit is a diff plus a message. Embed both, compare each commit to a reference, and look at the distance, and you get a cheap timeline of where a codebase changed character. The alternative is asking an LLM about every commit, which costs a call per commit and isn't reproducible. An embedding distance is one number, computed locally, the same on every run.
 
-A number like that is only useful if you know what a big value looks like. So on top of the build I set myself a second goal: run the analysis parts that need no paid key on real history and see what the numbers actually do.
+A number like that is only useful if you know what a big value looks like. So the second half of this post runs the drift score and the breaking-change detector on real history to see what the numbers actually do.
 
 ## Technical Details
 
@@ -72,8 +72,6 @@ The drift path in detail:
 <figure class="excal" data-diagram="diffsense-hybrid-drift"><a href="/img/diagrams/diffsense-hybrid-drift.webp" class="excal-link" aria-label="Open the diagram full size"><img src="/img/diagrams/diffsense-hybrid-drift.webp" alt="The hybrid drift score blends CodeBERT on the diff lines (0.7) with MiniLM on the commit message (0.3, zero-padded to 768 dimensions) as 1 minus cosine similarity against a 0.3 threshold, and measured on 17 commits MiniLM alone gives median drift 0.679 with 16 of 16 over threshold while CodeBERT gives median 0.024 with 0 of 16 over." width="2400" height="2981" loading="lazy" decoding="async"></a></figure>
 
 ## Implementation
-
-The backend excerpts below are short and attributed. The original repository is [jalenfran/DiffSense](https://github.com/jalenfran/DiffSense), and my fork is [SadeekFarhan21/DiffSense](https://github.com/SadeekFarhan21/DiffSense).
 
 ### Embedding a Diff (Jalen Francis)
 
@@ -132,7 +130,7 @@ Comparing the before and after dictionaries gives removals, renames and paramete
 
 Jayson wrote most of the dashboard, the API integration and the extension. The extension is a webview chat, with `extension.ts` and a React `ChatApp.tsx` under `media/`.
 
-**Mobile layout.** My first change touches `Dashboard.jsx`, `MainContent.jsx` and `Sidebar.jsx` (+166/-50). The core of it is a sidebar that is off canvas below the `lg` breakpoint and slides in over a dimmed overlay.
+**Mobile layout.** The mobile layout spans the dashboard, main content and sidebar components. The core of it is a sidebar that is off canvas below the `lg` breakpoint and slides in over a dimmed overlay.
 
 ```jsx
 {isMobileSidebarOpen && (
@@ -148,7 +146,7 @@ Jayson wrote most of the dashboard, the API integration and the extension. The e
 
 On desktop the sidebar is a normal flex child. On small screens it's `fixed` and translated out of view until the top bar toggles it, and a tap on the overlay closes it.
 
-**Markdown in chat.** My second change added `MarkdownRenderer.jsx` (178 lines), wired it into `ChatInterface.jsx` (+21 lines), and added `react-markdown`, `remark-gfm`, `rehype-highlight` and `highlight.js`, among other packages (`axios` and `lucide-react` came in too). It swaps the highlight theme with the page's dark mode by injecting a stylesheet and removing it on unmount.
+**Markdown in chat.** Chat replies go through a `MarkdownRenderer` component built on `react-markdown`, `remark-gfm`, `rehype-highlight` and `highlight.js`. It swaps the highlight theme with the page's dark mode by injecting a stylesheet and removing it on unmount.
 
 ```jsx
 const isDark = document.documentElement.classList.contains('dark')
@@ -173,8 +171,6 @@ A small diagnostic on five unrelated code snippets (Python, SQL, Java, C and Num
 Asking Claude whether every commit breaks callers costs a call per commit. The detector instead reduces each file to a dictionary of signatures and diffs the dictionaries. Python gets an exact parse through `ast`, and JavaScript, Java and C++ get regular expressions, so one pass covers the languages the dashboard shows. To check it, I built a small repo with 14 one-commit edits in Python and JS and labeled each one. **It caught every one of the 8 real breaks**, from a removed class to a changed JS parameter count, with no model call at all.
 
 ## Experiments
-
-I ran the parts that need no paid key, on CPU, with newer libraries than the repo pins (torch 2.14.0, transformers 4.57.6, sentence-transformers 5.7.0 and gitpython 3.1.62, against pinned 2.1.1, 4.36.0, 2.2.2 and 3.1.40). The measurement scripts, `scripts/measure.py` and `scripts/diagnose.py`, are mine.
 
 1. **Drift.** Take each of the 17 commits that change Python, JS or TS files, oldest first. Build the patch, embed the diff and the message with the hybrid, and compute 1 minus cosine to the previous commit and to the first (what DiffSense itself does). Run it once with CodeBERT as the code encoder and once with MiniLM. That's 16 comparisons each.
 2. **Diagnostic.** Embed five unrelated snippets with both encoders and record the min and max pairwise cosine over the 10 pairs.

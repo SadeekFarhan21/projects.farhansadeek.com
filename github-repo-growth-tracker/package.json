@@ -1,0 +1,24 @@
+{
+  "name": "github-metrics-tracker",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "astro dev",
+    "build": "astro build",
+    "prebuild": "node ./scripts/export-data.mjs",
+    "preview": "astro preview",
+    "check": "astro check",
+    "ingest:minute": "node ./scripts/poll-collect-metrics-minute.js",
+    "export-data": "node ./scripts/export-data.mjs"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.57.4",
+    "astro": "^5.14.0",
+    "chart.js": "^4.5.1"
+  },
+  "devDependencies": {
+    "@astrojs/check": "^0.9.6",
+    "typescript": "^5.9.3"
+  }
+}

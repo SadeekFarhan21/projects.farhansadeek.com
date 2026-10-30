@@ -1,0 +1,30 @@
+---
+import Base from "../../layouts/Base.astro";
+import Masthead from "../../components/Masthead.astro";
+import Archive from "../../components/Archive.astro";
+import Foot from "../../components/Foot.astro";
+import { ENTRIES, SUBJECTS } from "../../lib/data";
+
+export function getStaticPaths() {
+  return SUBJECTS.map((s) => {
+    const entries = ENTRIES.filter((e) => e.category.includes(s.cat));
+    return { params: { slug: s.slug }, props: { subject: s, entries } };
+  });
+}
+
+const { subject, entries } = Astro.props;
+const avg = (entries.reduce((n, e) => n + e.difficulty, 0) / entries.length).toFixed(1);
+const years = new Set(entries.map((e) => e.year)).size;
+---
+
+<Base
+  title={`${subject.label} — Putnam Archive`}
+  description={`Every Putnam ${subject.label.toLowerCase()} problem from 1985 to 2025, rated for difficulty.`}
+>
+  <Masthead
+    kicker={subject.label}
+    stats={[`${entries.length} problems`, `mean difficulty ${avg}`, `${years} years`]}
+  />
+  <Archive entries={entries} lockedSubject={subject.cat} />
+  <Foot />
+</Base>

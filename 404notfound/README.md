@@ -1,0 +1,3 @@
+# Truth Trakker
+
+TruthTrakker is a cutting-edge program that uses machine learning to perform three main functions: to classify news articles as true or false, to determine whether the article was human-written or AI-generated, and to determine the mood of the article to allow you to be aware of any potential biases. We used over 60,000 data points from Kaggle to train and test our model, where 80% of the data was used for training and developing pattern identification, and the remaining 20% was used for evaluating the pattern’s accuracy. The program utilizes different parts of this unique pattern to determine each of the three functions. Now, we would like to show you a demonstration of our program and each of its aspects.

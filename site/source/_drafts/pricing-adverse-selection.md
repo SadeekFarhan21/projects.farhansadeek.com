@@ -1,7 +1,7 @@
 ---
 layout: post
 title: "Measuring What Informed Traders Cost a Market Maker"
-code: https://github.com/SadeekFarhan21/projects/tree/main/adverse-selection-lob-sim
+code: https://github.com/SadeekFarhan21/projects.farhansadeek.com/tree/main/adverse-selection-lob-sim
 tags:
   - market-microstructure
   - simulation
@@ -15,12 +15,9 @@ date: 2026-09-29 04:01:45
 
 I built a small agent-based market to watch one textbook claim happen in a real order book. A dealer earns the spread from uninformed traders and pays some of it back to informed ones, and as the informed share of order flow grows, a dealer who does not widen should make less money. In the simulator it does. As the informed fraction of taker arrivals goes from 0 to 0.6, adverse selection per fill for a fixed-formula market maker rises from **0.605 to 1.266 ticks**, and its PnL per fill falls from **2.210 to 0.881 ticks**, a drop of 60%. A second market maker that adds its own measured markout loss to its half-spread widens from **6.85 to 8.16 ticks** and keeps PnL per fill at 2.0 or above everywhere.
 
-The market has four kinds of agents on one event heap. Noise traders send market orders as a Poisson process. Informed traders see a noisy signal of a hidden fundamental value that follows a random walk with jumps. Noise liquidity providers post passive limit orders. One Avellaneda-Stoikov<sup>[[1]](#ref-1)</sup> market maker quotes around a learned fair value and skews by inventory. It never sees the fundamental, but in the default mode it is told the true informed fraction and scales its belief updates by it, so the headline numbers describe a dealer who knows the informed share exactly. Everything is pure Python and seeded, and an independent rerun reproduced the sweep, the ablation and the stylized facts byte for byte.
+The market has four kinds of agents on one event heap. Noise traders send market orders as a Poisson process. Informed traders see a noisy signal of a hidden fundamental value that follows a random walk with jumps. Noise liquidity providers post passive limit orders. One Avellaneda-Stoikov<sup>[[1]](#ref-1)</sup> market maker quotes around a learned fair value and skews by inventory. It never sees the fundamental, but in the default mode it is told the true informed fraction and scales its belief updates by it, so the headline numbers describe a dealer who knows the informed share exactly. Everything is pure Python and seeded, so a run with a fixed seed is deterministic.
 
 The market-making result was the easy part. Getting there took three bugs in the market maker's model of the world, one of which crashed the price by 98 ticks with no news, and one performance bug in CPython's `dict` that I would not have guessed. The stylized facts are more modest than the market-making story. Fat tails are present but mostly come from the jumps I put in, and volatility clustering dies within about five lags.
-
-Every number below comes from the saved outputs of the committed runs.
-
 *Reading note.* The problems section is the most useful part. If you only want the claim and its limits, read [Results](#results) and [What I Would Change](#what-i-would-change).
 
 ## What I Wanted to Build
@@ -199,7 +196,7 @@ There are 32 tests. The one I trust most is a fuzz test that runs 5 seeds of 3,0
 
 ## Problems
 
-Most of the time on this project went into the market maker's beliefs, not the book. Three of the eight problems below were the market maker being wrong about the world in a way that looked like a market phenomenon.
+Most of the time on this project went into the market maker's beliefs, not the book. Three of the seven problems below were the market maker being wrong about the world in a way that looked like a market phenomenon.
 
 ### 1. The Market Maker Crashed the Price by Learning from Its Own Quotes
 
@@ -264,7 +261,7 @@ The fix was to record each agent's edge at trade time, $\sum s q (V_t - p)$. Inf
 
 ### 5. The Book Was Quadratic in Level Depth
 
-The benchmark workload builds deep levels, with 31,603 resting orders left at the end, clustered near one price, and throughput was poor. There were two culprits.
+A stress workload of 500,000 random book operations builds deep levels, with 31,603 resting orders left at the end, clustered near one price, and throughput was poor. There were two culprits.
 
 The first was ordinary. Matching iterated `for oid in list(level)`, which copies the whole level on every aggressive order.
 
@@ -277,7 +274,7 @@ A microbenchmark of the two containers shows it plainly.
 | `dict` | 0.112 s | 3.554 s |
 | `OrderedDict` | 0.002 s | 0.006 s |
 
-Four times the size costs the plain dict about 32 times the time. Levels are OrderedDicts now. The devlog records that the full sweep was bit-identical before and after the change, with zero differing cells in the aggregated results, which is a good regression check that FIFO semantics did not move. That comparison was not saved with the results, so it rests on the log.
+Four times the size costs the plain dict about 32 times the time. Levels are OrderedDicts now, which keep FIFO order with O(1) removal.
 
 ### 6. There Are Two Spreads
 
@@ -288,10 +285,6 @@ It is stale orders. When informed flow moves the market maker's fair value, liqu
 ### 7. Tick Discreteness Inflates Short-Horizon Kurtosis
 
 On a one-tick grid with small per-unit moves, many one-unit mid changes are exactly zero, and a distribution with a spike at zero has high kurtosis for a trivial reason. That is why I read fat tails at the 10-unit horizon and report 1, 10 and 100 units side by side.
-
-### 8. The Benchmark Machine Was Shared
-
-Fourteen other projects were building on the same 14-core machine, and the benchmark recorded a one-minute load average of 291 at its start and 320 at its end. Wall time for the same 216-run sweep ranged from 61 to 226 s across reruns. The run whose results are committed took 61.2 s, and an earlier run with identical numbers took 225.7 s. Under that load no committed timing is a measurement of the code, which is why the throughput section below does not quote them as performance.
 
 ## Experiments
 
@@ -308,10 +301,6 @@ This experiment runs one 200,000-unit baseline at $\alpha = 0.4$ with the fixed 
 ### Inventory Ablation
 
 The ablation crosses noise elasticity in $\{0, 0.1\}$ with inventory learning in $\{0, 0.02\}$ and $\alpha \in \{0, 0.2, 0.4\}$, one seed per cell.
-
-### Benchmark
-
-The benchmark times five repeats of 500,000 pre-generated book operations (60% limit, 15% market, 25% cancel, sizes 1 to 4) and three 20,000-unit simulations at $\alpha = 0.2$, single-threaded.
 
 ## Results
 
@@ -375,12 +364,6 @@ The fixed Avellaneda-Stoikov maker has no channel to widen on news. Its spread d
 
 For the baseline run, 71,520 fills over 200,000 units, total PnL was 97,116 ticks. Spread capture contributed 177,634, adverse selection -80,589 and inventory carry 71. The three terms sum to the total exactly. Adverse selection took 45% of gross spread capture. Carry is negligible because mean absolute inventory is 1.7 units. In the run with no informed traders, adverse selection per fill falls from 1.127 to 0.611, and what remains is the maker's own footprint on the mid described above.
 
-### Throughput, Not Yet Measured
-
-I do not have a throughput number I would stand behind. The committed benchmark records 33,200 book operations per second and 13,854 simulation events per second, but it was taken single-threaded at a one-minute load average near 300 on a 14-core machine, and those figures say more about the machine than about the code. The other committed runs show how unstable they are. The four 200,000-unit stylized runs, at 1.18 to 1.26 million events each, recorded 31,271 to 33,389 events/s, more than twice the benchmark rate for the same code.
-
-The independent verification gives a sense of how far off the loaded numbers are. At a load average near 6, a small smoke run of the benchmark put one 20,000-unit simulation at about 376,000 events/s, and each 200,000-unit stylized run took about 3 s against 35 to 64 s in the committed results. That smoke run was a single short simulation and its tiny book workload does not build the deep levels of the real one, so it is not a benchmark either. The honest status is that throughput has not been measured on a quiet machine, and the committed figures are very conservative lower bounds.
-
 ## What I Would Change
 
 ### A Real Belief Model for the Market Maker
@@ -399,9 +382,9 @@ Hawkes-process<sup>[[7]](#ref-7)</sup> order arrivals or a regime-switching fund
 
 The adaptive maker charges itself about 0.6 ticks per fill at $\alpha = 0$ for its own impact on the mid. A markout against a reference that excludes the maker's own quotes would separate the two.
 
-### Measure Performance Properly
+### Profile Before Porting to C++
 
-I would rerun the full benchmark on an idle machine before quoting any throughput, and profile the event loop before starting the C++ core. At about 120,000 events per run, the Python book is not obviously the bottleneck. The scheduler, the recorder and per-event allocation matter about as much.
+I would profile the event loop before starting the C++ core. At about 120,000 events per run, the Python book is not obviously the bottleneck. The scheduler, the recorder and per-event allocation matter about as much.
 
 ### Variable Order Sizes
 

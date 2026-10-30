@@ -1,0 +1,303 @@
+---
+import Base from '../layouts/Base.astro';
+---
+
+<Base title="GitHub Repo Growth Tracker" description="Track 1d/7d/1m/3m star changes for discovered public GitHub repositories." active="all">
+  <div class="page-header">
+    <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:8px;">
+      <h1>GitHub Repo Growth Tracker</h1>
+      <a href="/data/repos.csv" download class="csv-download-btn">&#11015; Download CSV</a>
+    </div>
+    <p class="subtitle">Star deltas over 1&thinsp;day, 7&thinsp;days, 1&thinsp;month, and 3&thinsp;months. Click any repo for deep signal analysis.</p>
+    <p class="meta" id="last-refresh"></p>
+  </div>
+
+  <!-- Quick Filters -->
+  <div class="quick-actions" id="quick-filters">
+    <button class="quick-action-btn active" data-filter="all">All</button>
+    <button class="quick-action-btn" data-filter="growing">Growing</button>
+    <button class="quick-action-btn" data-filter="hot-today">Hot Today</button>
+    <button class="quick-action-btn" data-filter="new">New (7d+)</button>
+  </div>
+
+  <div id="table-error" class="error-box" hidden></div>
+
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th data-key="repo" style="text-align:left">Repository <span class="sort-arrow"></span></th>
+          <th class="num" data-key="current_stars"><svg class="icon-star" viewBox="0 0 16 16"><path d="M8 .25a.75.75 0 0 1 .673.418l1.882 3.815 4.21.612a.75.75 0 0 1 .416 1.279l-3.046 2.97.719 4.192a.75.75 0 0 1-1.088.791L8 12.347l-3.766 1.98a.75.75 0 0 1-1.088-.79l.72-4.194L.818 6.374a.75.75 0 0 1 .416-1.28l4.21-.611L7.327.668A.75.75 0 0 1 8 .25z"/></svg> <span class="sort-arrow"></span></th>
+          <th class="num" data-key="current_forks"><svg class="icon-fork" viewBox="0 0 16 16"><path d="M5 3.25a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0zm0 2.122a2.25 2.25 0 1 0-1.5 0v.878A2.25 2.25 0 0 0 5.75 8.5h1.5v2.128a2.251 2.251 0 1 0 1.5 0V8.5h1.5a2.25 2.25 0 0 0 2.25-2.25v-.878a2.25 2.25 0 1 0-1.5 0v.878a.75.75 0 0 1-.75.75h-4.5A.75.75 0 0 1 5 6.25v-.878zm3.75 7.378a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0zm3-8.75a.75.75 0 1 0 0-1.5.75.75 0 0 0 0 1.5z"/></svg> <span class="sort-arrow"></span></th>
+          <th class="num group-sep" data-key="one_day_stars">1d <span class="sort-arrow"></span></th>
+          <th class="num group-sep" data-key="seven_day_stars">7d <span class="sort-arrow"></span></th>
+          <th class="num group-sep" data-key="one_month_stars">1m <span class="sort-arrow"></span></th>
+          <th class="num group-sep" data-key="three_month_stars">3m <span class="sort-arrow"></span></th>
+        </tr>
+      </thead>
+      <tbody id="growth-body">
+        <tr><td class="msg-cell" colspan="7">Loading&hellip;</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="pager" id="pager" hidden>
+    <button id="prev-page" type="button">&larr; Prev</button>
+    <span id="page-info"></span>
+    <button id="next-page" type="button">Next &rarr;</button>
+  </div>
+
+  <script>
+    type GrowthMetricRow = {
+      repo_owner: string;
+      repo_name: string;
+      repo_url: string;
+      current_stars: number;
+      current_forks: number;
+      one_day_stars: number;
+      seven_day_stars: number;
+      one_month_stars: number;
+      three_month_stars: number;
+    };
+
+    const growthBody = document.querySelector<HTMLTableSectionElement>('#growth-body')!;
+    const tableError = document.querySelector<HTMLDivElement>('#table-error')!;
+    const lastRefresh = document.querySelector<HTMLSpanElement>('#last-refresh')!;
+    const allTh = document.querySelectorAll<HTMLTableCellElement>('thead th[data-key]');
+    const pager = document.querySelector<HTMLDivElement>('#pager')!;
+    const prevBtn = document.querySelector<HTMLButtonElement>('#prev-page')!;
+    const nextBtn = document.querySelector<HTMLButtonElement>('#next-page')!;
+    const pageInfoEl = document.querySelector<HTMLSpanElement>('#page-info')!;
+
+    const fmt = new Intl.NumberFormat('en-US');
+    const PAGE_SIZE = 100;
+    const COL_SPAN = 7;
+
+    let sortKey = 'current_stars';
+    let sortAsc = false;
+    let currentPage = 0;
+    let activeFilter = 'all';
+    let allData: GrowthMetricRow[] = [];
+    let filteredData: GrowthMetricRow[] = [];
+
+    function delta(v: number): string {
+      return v > 0 ? `+${fmt.format(v)}` : fmt.format(v);
+    }
+
+    function heatCls(v: number): string {
+      if (v >= 500) return 'heat-5';
+      if (v >= 100) return 'heat-4';
+      if (v >= 50) return 'heat-3';
+      if (v >= 10) return 'heat-2';
+      if (v > 0) return 'heat-1';
+      if (v < 0) return 'negative';
+      return 'neutral';
+    }
+
+    function tdEl(text: string, className = ''): HTMLTableCellElement {
+      const el = document.createElement('td');
+      el.textContent = text;
+      if (className) el.className = className;
+      return el;
+    }
+
+    function showMsg(msg: string) {
+      growthBody.innerHTML = '';
+      pager.hidden = true;
+      const row = document.createElement('tr');
+      const cell = document.createElement('td');
+      cell.colSpan = COL_SPAN;
+      cell.className = 'msg-cell';
+      cell.textContent = msg;
+      row.appendChild(cell);
+      growthBody.appendChild(row);
+    }
+
+    function updateSortArrows() {
+      allTh.forEach(th => {
+        const arrow = th.querySelector('.sort-arrow')!;
+        const k = th.dataset.key;
+        if (k === sortKey) {
+          th.classList.add('sorted');
+          arrow.textContent = sortAsc ? '\u25B2' : '\u25BC';
+        } else {
+          th.classList.remove('sorted');
+          arrow.textContent = '';
+        }
+      });
+    }
+
+    function applyFilter() {
+      if (activeFilter === 'all') {
+        filteredData = [...allData];
+      } else if (activeFilter === 'growing') {
+        filteredData = allData.filter(r => r.seven_day_stars >= 1);
+      } else if (activeFilter === 'hot-today') {
+        filteredData = allData.filter(r => r.one_day_stars >= 10);
+      } else if (activeFilter === 'new') {
+        filteredData = allData.filter(r => r.seven_day_stars >= 10);
+      }
+    }
+
+    function sortData() {
+      const key = sortKey;
+      filteredData.sort((a, b) => {
+        let va: any, vb: any;
+        if (key === 'repo') {
+          va = `${a.repo_owner}/${a.repo_name}`.toLowerCase();
+          vb = `${b.repo_owner}/${b.repo_name}`.toLowerCase();
+        } else {
+          va = (a as any)[key];
+          vb = (b as any)[key];
+        }
+        if (va < vb) return sortAsc ? -1 : 1;
+        if (va > vb) return sortAsc ? 1 : -1;
+        // Secondary sort by repo name
+        const na = `${a.repo_owner}/${a.repo_name}`.toLowerCase();
+        const nb = `${b.repo_owner}/${b.repo_name}`.toLowerCase();
+        return na < nb ? -1 : na > nb ? 1 : 0;
+      });
+    }
+
+    function renderPage() {
+      growthBody.innerHTML = '';
+      const start = currentPage * PAGE_SIZE;
+      const slice = filteredData.slice(start, start + PAGE_SIZE);
+
+      for (const m of slice) {
+        const row = document.createElement('tr');
+
+        const repoTd = document.createElement('td');
+        repoTd.style.textAlign = 'left';
+        const a = document.createElement('a');
+        a.href = `/repo?owner=${encodeURIComponent(m.repo_owner)}&name=${encodeURIComponent(m.repo_name)}`;
+        a.textContent = `${m.repo_owner}/${m.repo_name}`;
+        repoTd.appendChild(a);
+
+        row.append(
+          repoTd,
+          tdEl(fmt.format(m.current_stars), 'num'),
+          tdEl(fmt.format(m.current_forks), 'num'),
+          tdEl(delta(m.one_day_stars),       `num group-sep ${heatCls(m.one_day_stars)}`),
+          tdEl(delta(m.seven_day_stars),     `num group-sep ${heatCls(m.seven_day_stars)}`),
+          tdEl(delta(m.one_month_stars),     `num group-sep ${heatCls(m.one_month_stars)}`),
+          tdEl(delta(m.three_month_stars),   `num group-sep ${heatCls(m.three_month_stars)}`)
+        );
+
+        growthBody.appendChild(row);
+      }
+
+      updatePager();
+      updateSortArrows();
+    }
+
+    function updatePager() {
+      const total = filteredData.length;
+      if (total <= PAGE_SIZE) {
+        pager.hidden = true;
+        return;
+      }
+      pager.hidden = false;
+      const totalPages = Math.ceil(total / PAGE_SIZE);
+      const from = currentPage * PAGE_SIZE + 1;
+      const to = Math.min((currentPage + 1) * PAGE_SIZE, total);
+      pageInfoEl.textContent = `${fmt.format(from)}\u2013${fmt.format(to)} of ${fmt.format(total)}`;
+      prevBtn.disabled = currentPage === 0;
+      nextBtn.disabled = currentPage >= totalPages - 1;
+    }
+
+    function refreshView() {
+      applyFilter();
+      // For hot-today, force sort by 1d stars
+      if (activeFilter === 'hot-today' && sortKey !== 'one_day_stars') {
+        sortKey = 'one_day_stars';
+        sortAsc = false;
+      }
+      sortData();
+      currentPage = 0;
+      renderPage();
+      lastRefresh.textContent = `${fmt.format(filteredData.length)} repos shown of ${fmt.format(allData.length)} tracked`;
+    }
+
+    async function loadData() {
+      showMsg('Loading\u2026');
+
+      try {
+        const resp = await fetch('/data/repos.json');
+        if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+        const json = await resp.json();
+
+        // Map abbreviated keys to full names
+        allData = json.repos.map((r: any) => ({
+          repo_owner: r.o,
+          repo_name: r.n,
+          repo_url: r.u,
+          current_stars: r.s,
+          current_forks: r.f,
+          one_day_stars: r.d1s,
+          seven_day_stars: r.d7s,
+          one_month_stars: r.d1ms,
+          three_month_stars: r.d3ms,
+        }));
+
+        if (allData.length === 0) {
+          showMsg('No snapshots yet. Run the collector and check back.');
+          return;
+        }
+
+        // Show export date
+        if (json.exported_at) {
+          const d = new Date(json.exported_at);
+          lastRefresh.textContent = `${fmt.format(allData.length)} repos tracked \u2022 updated ${d.toLocaleDateString()}`;
+        }
+
+        refreshView();
+      } catch (err: any) {
+        tableError.hidden = false;
+        tableError.textContent = `Failed to load data: ${err.message}. Run "npm run export-data" to generate the data file.`;
+        showMsg('Error loading data.');
+      }
+    }
+
+    // Sort column clicks
+    allTh.forEach(th => {
+      th.addEventListener('click', () => {
+        const key = th.dataset.key;
+        if (!key) return;
+        if (key === sortKey) {
+          sortAsc = !sortAsc;
+        } else {
+          sortKey = key;
+          sortAsc = key === 'repo' ? true : false;
+        }
+        currentPage = 0;
+        sortData();
+        renderPage();
+      });
+    });
+
+    // Quick filter buttons
+    document.getElementById('quick-filters')!.addEventListener('click', (e) => {
+      const btn = (e.target as HTMLElement).closest('.quick-action-btn') as HTMLElement;
+      if (!btn) return;
+      document.querySelectorAll('#quick-filters .quick-action-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      activeFilter = btn.dataset.filter || 'all';
+      refreshView();
+    });
+
+    prevBtn.addEventListener('click', () => {
+      if (currentPage > 0) { currentPage--; renderPage(); }
+    });
+
+    nextBtn.addEventListener('click', () => {
+      if ((currentPage + 1) * PAGE_SIZE < filteredData.length) {
+        currentPage++;
+        renderPage();
+      }
+    });
+
+    // ── Init ──
+    loadData();
+  </script>
+</Base>

@@ -1,0 +1,9 @@
+.vercel
+__pycache__/
+*.pyc
+.venv/
+.env
+course-finder/node_modules/
+course-finder/src/
+course-finder/.venv312/
+course-finder/.playwright-profile/

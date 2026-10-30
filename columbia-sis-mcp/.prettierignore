@@ -1,0 +1,10 @@
+node_modules/
+out/
+pnpm-lock.yaml
+# Generated data — large, not hand-edited
+courses.json
+graduate.json
+graduate_readable.json
+site/src/data/courses.json
+site/public/courses.csv
+site/dist/

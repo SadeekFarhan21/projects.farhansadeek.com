@@ -1,0 +1,47 @@
+app = 'treena-api'
+primary_region = 'iad'
+
+[build]
+
+[env]
+  PORT = '8080'
+  USE_FLY = 'true'
+  FLY_BRIDGE_APP = 'treena-bridge'
+  # NOTE: Fly does not auto-tag :latest. Update this to the new deployment tag
+  # after every `fly deploy --config server/fly.toml` of the bridge image.
+  # Future improvement: have fly.mjs query GET /apps/treena-bridge for the
+  # current release image dynamically (with a 60s cache).
+  FLY_BRIDGE_IMAGE = 'registry.fly.io/treena-bridge:deployment-01KQ96EWH64ZBTMA1ZEQWD3VY0'
+  FLY_DEFAULT_REGION = 'iad'
+  FLY_DEFAULT_VOLUME_GB = '10'
+  AWS_REGION = 'us-east-1'
+  DYNAMODB_TABLE = 'treena-user-tokens'
+  DYNAMODB_MACHINES_TABLE = 'treena-user-machines'
+  DYNAMODB_REPOS_TABLE = 'treena-user-repos'
+  # CloudWatch metrics for the Fly migration (Day 5 observability).
+  # Requires the AWS IAM user behind AWS_ACCESS_KEY_ID to have
+  # cloudwatch:PutMetricData permission. Metrics are also logged to stdout
+  # regardless, so the dashboard works through log-based queries even if CW is
+  # disabled or IAM isn't yet wired.
+  CW_METRICS_ENABLED = 'true'
+  CW_METRICS_NAMESPACE = 'Treena/Migration'
+
+[http_service]
+  internal_port = 8080
+  force_https = true
+  auto_start_machines = true
+  auto_stop_machines = 'off'
+  min_machines_running = 1
+
+[[http_service.checks]]
+  grace_period = '10s'
+  interval = '30s'
+  method = 'get'
+  timeout = '5s'
+  path = '/health'
+
+[[vm]]
+  size = 'shared-cpu-1x'
+  memory = '1gb'
+  cpus = 1
+  memory_mb = 1024

@@ -1,0 +1,104 @@
+{
+  "generatedFrom": "out/subject-index-A-Z.json + profile/{profile,academic}.json",
+  "term": "Fall2026",
+  "basis": "CS major; EE/Physics/Math minors; interests: ML, distributed algorithms, signal processing, random matrix theory, higher-dimensional geometry",
+  "count": 16,
+  "subjects": [
+    {
+      "code": "APAM",
+      "name": "Applied Physics and Applied Math",
+      "reason": "Applied Physics & Applied Math department",
+      "fall2026Href": "https://doc.sis.columbia.edu/subj/APAM/_Fall2026.html"
+    },
+    {
+      "code": "APMA",
+      "name": "Applied Mathematics",
+      "reason": "Applied Mathematics — PDEs, numerics, applied analysis",
+      "fall2026Href": "https://doc.sis.columbia.edu/subj/APMA/_Fall2026.html"
+    },
+    {
+      "code": "APPH",
+      "name": "Applied Physics",
+      "reason": "Applied Physics — quantum matter, optics, plasma",
+      "fall2026Href": "https://doc.sis.columbia.edu/subj/APPH/_Fall2026.html"
+    },
+    {
+      "code": "ASPH",
+      "name": "Astronomy and Physics",
+      "reason": "Astronomy & Physics joint",
+      "fall2026Href": "https://doc.sis.columbia.edu/subj/ASPH/_Fall2026.html"
+    },
+    {
+      "code": "ASTR",
+      "name": "Astronomy",
+      "reason": "Astronomy — physics-adjacent",
+      "fall2026Href": "https://doc.sis.columbia.edu/subj/ASTR/_Fall2026.html"
+    },
+    {
+      "code": "COMS",
+      "name": "Computer Science",
+      "reason": "Computer Science (major) — ML, systems, theory, vision, NLP",
+      "fall2026Href": "https://doc.sis.columbia.edu/subj/COMS/_Fall2026.html"
+    },
+    {
+      "code": "CSBS",
+      "name": "Computer Sci Biological Sci",
+      "reason": "CS & Biological Sci — ML for genomics/bio",
+      "fall2026Href": "https://doc.sis.columbia.edu/subj/CSBS/_Fall2026.html"
+    },
+    {
+      "code": "CSEE",
+      "name": "Computer Science and Electrical Engineering",
+      "reason": "CS & Electrical Engineering joint — signals/systems + computing",
+      "fall2026Href": "https://doc.sis.columbia.edu/subj/CSEE/_Fall2026.html"
+    },
+    {
+      "code": "CSOR",
+      "name": "Computer Science and Operations Research",
+      "reason": "CS & Operations Research — optimization, stochastic methods",
+      "fall2026Href": "https://doc.sis.columbia.edu/subj/CSOR/_Fall2026.html"
+    },
+    {
+      "code": "ECBM",
+      "name": "Electrical Eng/ Computer Science/ Biomedical Engineering",
+      "reason": "Electrical Eng & Biomedical — signals, imaging",
+      "fall2026Href": "https://doc.sis.columbia.edu/subj/ECBM/_Fall2026.html"
+    },
+    {
+      "code": "EECS",
+      "name": "Electrical Engineering and Computer Science",
+      "reason": "Electrical Engineering & CS joint",
+      "fall2026Href": "https://doc.sis.columbia.edu/subj/EECS/_Fall2026.html"
+    },
+    {
+      "code": "ELEN",
+      "name": "Electrical Engineering",
+      "reason": "Electrical Engineering (minor) — signal processing, info theory",
+      "fall2026Href": "https://doc.sis.columbia.edu/subj/ELEN/_Fall2026.html"
+    },
+    {
+      "code": "IEOR",
+      "name": "Industrial Engineering and Operations Research",
+      "reason": "Operations Research — optimization, stochastic processes, ML",
+      "fall2026Href": "https://doc.sis.columbia.edu/subj/IEOR/_Fall2026.html"
+    },
+    {
+      "code": "MATH",
+      "name": "Mathematics",
+      "reason": "Mathematics (minor) — analysis, probability, geometry, topology",
+      "fall2026Href": "https://doc.sis.columbia.edu/subj/MATH/_Fall2026.html"
+    },
+    {
+      "code": "PHYS",
+      "name": "Physics",
+      "reason": "Physics (minor) — quantum, mechanics, math methods",
+      "fall2026Href": "https://doc.sis.columbia.edu/subj/PHYS/_Fall2026.html"
+    },
+    {
+      "code": "STAT",
+      "name": "Statistics",
+      "reason": "Statistics — probability, stochastic processes, ML theory",
+      "fall2026Href": "https://doc.sis.columbia.edu/subj/STAT/_Fall2026.html"
+    }
+  ]
+}

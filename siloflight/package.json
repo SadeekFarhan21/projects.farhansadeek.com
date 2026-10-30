@@ -1,0 +1,22 @@
+{
+  "name": "siloflight",
+  "private": true,
+  "version": "0.1.0",
+  "workspaces": [
+    "site",
+    "app"
+  ],
+  "scripts": {
+    "dev": "npm run dev --workspace site",
+    "dev:web": "npm run dev --workspace site",
+    "dev:app": "npm run start --workspace app",
+    "build": "npm run build --workspace site",
+    "build:web": "npm run build --workspace site",
+    "lint": "npm run lint --workspace site",
+    "db:push": "npm run db:push --workspace site",
+    "db:studio": "npm run db:studio --workspace site"
+  },
+  "dependencies": {
+    "@vercel/analytics": "^2.0.1"
+  }
+}

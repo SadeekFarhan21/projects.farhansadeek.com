@@ -2,7 +2,7 @@
 layout: post
 title: "Keeping Columbus's Lead-Pipe Loan Fund From Running Dry"
 tab_title: LEAP Loan Fund
-code: https://github.com/SadeekFarhan21/projects/tree/main/quantathon-leap-reserve
+code: https://github.com/SadeekFarhan21/projects.farhansadeek.com/tree/main/quantathon-leap-reserve
 date: 2026-03-28 10:33:40
 tags:
   - monte-carlo
@@ -107,7 +107,7 @@ The deterministic benchmark gives a maximum cumulative deficit of **$2,471,551**
 It was the comparison. The deterministic model computes $\max_t E[X_t]$, and the interval is for $E[\max_t X_t]$. So I computed the right quantity from the same 3,000 paths, averaging the cumulative net outflow per year first and then taking the maximum over years.
 
 ```python
-# scripts/measure.py (added in the port)
+# max of the averaged curve, against the mean of per-path maxima
 mean_curve = [fmean(r[i] for r in cum) for i in range(len(YEARS))]
 max_of_mean = max(mean_curve)      # 2,471,914.86, peak year 2034
 mean_of_max = base["loan_summary"]["mean"]   # 2,489,536.59
@@ -123,17 +123,15 @@ The rate itself, 0.20% a year, rests on a single pilot window of 62 active loans
 
 ## Experiments
 
-I wrote one script, `scripts/measure.py`, and ran it against the model:
+Each experiment varies one thing against the same core simulator:
 
-- The base run (3,000 paths, seed 20260328), to check the headline.
-- The Jensen decomposition and peak-year histogram from the same paths.
-- The bootstrap interval, using the same scheme as `bootstrap_ci.py` (2,000 resamples, seed 42).
+- The base run (3,000 paths, seed 20260328), which produces the headline.
+- The Jensen decomposition and peak-year histogram from those same paths.
+- The bootstrap interval (2,000 resamples, seed 42).
 - An uptake start-rate sweep at seven values, 500 paths each, holding the cap (0.30%) and growth (5%) at their base values.
 - A pooled mixture over an assumed uniform prior on the start rate, 10 grid points times 300 paths, seed 7.
 - The three stress scenarios, 1,000 paths each, seed 20260401.
-- `solution/test_v4.py`, 1,000 paths on the v4 parcel file.
-
-The NPV, tornado and ML-enhanced numbers are read from the model's `summary.json` output.
+- A 1,000-path run on the organizer-supplied v4 parcel file.
 
 ## Results
 
@@ -167,7 +165,7 @@ NPV at a 3% discount rate gives a PV of outflows of $3.32M and of inflows of $1.
 
 ### Sensitivity to a Different Parcel File
 
-`solution/test_v4.py` finds 6,057 eligible parcels among the 10,000 in the organizer-supplied v4 file, a mean loan of $9,993 (against $7,386) and a P95 of $742,138 for those parcels. Scaled by 34,269 / 6,057 that is $4.20M, 1.54 times the headline. The v4 file has a different lead share (43.8% against 70.0%) and a different loan mean, so **the gap measures how sensitive the reserve is to its inputs**, the same lesson as the uptake sweep.
+Run on the organizer-supplied v4 file, the model finds 6,057 eligible parcels among its 10,000, a mean loan of $9,993 (against $7,386) and a P95 of $742,138 for those parcels. Scaled by 34,269 / 6,057 that is $4.20M, 1.54 times the headline. The v4 file has a different lead share (43.8% against 70.0%) and a different loan mean, so **the gap measures how sensitive the reserve is to its inputs**, the same lesson as the uptake sweep.
 
 ## What I Would Change
 

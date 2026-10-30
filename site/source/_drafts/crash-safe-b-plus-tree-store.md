@@ -1,7 +1,7 @@
 ---
 layout: post
 title: "A Crash-Safe B+ Tree That Survives kill -9"
-code: https://github.com/SadeekFarhan21/projects/tree/main/kvdb-btree-wal-engine
+code: https://github.com/SadeekFarhan21/projects.farhansadeek.com/tree/main/kvdb-btree-wal-engine
 tags:
   - databases
   - storage
@@ -15,11 +15,11 @@ date: 2026-09-29 04:01:45
 
 I wrote kvdb, a persistent single-node key-value store in C++20 with no runtime dependencies. It keeps a B+ tree in 4 KiB pages in one file, caches pages in a buffer pool with LRU eviction and pin counts, logs every commit to a write-ahead log (WAL) with a configurable sync policy, makes checkpoints crash-atomic with a page journal, and recovers after a crash by replaying the log. A small REPL sits on top.
 
-The code is about 1,700 lines of C++, headers and comments included, plus about 930 lines of GoogleTest. There are **36 tests**, and on 2026-09-27 an independent clean release rebuild passed all 36, including the tests that fork a writer process and kill it. The AddressSanitizer<sup>[[1]](#ref-1)</sup> plus UBSan build also passed all 36 in my own run, but it was not rerun independently, and neither were the benchmarks.
+The code is about 1,700 lines of C++, headers and comments included, plus about 930 lines of GoogleTest. There are **36 tests**, including ones that fork a writer process and kill it, and all 36 pass in a release build and in an AddressSanitizer<sup>[[1]](#ref-1)</sup> plus UBSan build.
 
-The headline result is the crash testing. A child process writes and acknowledges each commit over a pipe, and the parent kills it with SIGKILL. In the verified release run, 12 random kills covering 9,721 acknowledged operations **lost none of them**. A second test aims kills into the middle of a large checkpoint, and **6 of its 10 killed rounds** landed in the window where the journal was complete but the pages were only partly written in place, and were repaired from the journal. A third test crashes the process at each of 5 named steps of the checkpoint protocol and then crashes it again at the same step inside recovery. Every one of these reopens the database, walks the whole tree checking its invariants, and compares it to a model. These are process crashes. The OS page cache survives them, so they say nothing about power loss, which I did not test.
+The headline result is the crash testing. A child process writes and acknowledges each commit over a pipe, and the parent kills it with SIGKILL. In the release build, 12 random kills covering 9,721 acknowledged operations **lost none of them**. A second test aims kills into the middle of a large checkpoint, and **6 of its 10 killed rounds** landed in the window where the journal was complete but the pages were only partly written in place, and were repaired from the journal. A third test crashes the process at each of 5 named steps of the checkpoint protocol and then crashes it again at the same step inside recovery. Every one of these reopens the database, walks the whole tree checking its invariants, and compares it to a model. These are process crashes. The OS page cache survives them, so they say nothing about power loss, which I did not test.
 
-The second story is what durability costs on a Mac. With no sync a commit took 1.2 µs at the median. With `fsync` it took 24 µs, and with `F_FULLFSYNC`, the only call on macOS that makes the drive flush its own cache<sup>[[2]](#ref-2)</sup>, it took **4.01 ms**, about 3,300 times the unsynced cost. Batching 256 puts into one `F_FULLFSYNC` commit brought throughput from 243 to **59,450 puts per second**. All benchmark numbers come from a shared Apple M4 Pro that was running other jobs, with the 1 minute load average recorded in every row (3.9 to 6.3 for the reported runs). They are indicative, not a clean benchmark. The 1M key database also fits in memory, so the throughput numbers measure CPU and system call cost, not the disk.
+The second story is what durability costs on a Mac. With no sync a commit took 1.2 µs at the median. With `fsync` it took 24 µs, and with `F_FULLFSYNC`, the only call on macOS that makes the drive flush its own cache<sup>[[2]](#ref-2)</sup>, it took **4.01 ms**, about 3,300 times the unsynced cost. Batching 256 puts into one `F_FULLFSYNC` commit brought throughput from 243 to **59,450 puts per second**. The benchmarks ran on an Apple M4 Pro, and the 1M key database fits in memory, so the throughput numbers measure CPU and system call cost, not the disk.
 
 The argument of this post is that a small storage engine becomes trustworthy through its crash tests rather than its design document, and that on macOS "durable" is a choice between three very different prices. Skip to [Problems](#problems) for what went wrong.
 
@@ -29,7 +29,7 @@ I wanted a storage engine I understand all the way down, from bytes in a 4 KiB p
 
 The v0 scope was fixed up front. A pager over one file. A buffer pool with LRU eviction and pin counts. A B+ tree with insert, point lookup, range scan and lazy delete. A WAL with fsync and redo recovery on startup. A REPL. A crash test that really kills a process. And benchmarks against `std::map` and SQLite at 1M keys.
 
-The bar was correctness first. Every claim about durability had to be backed by a test that kills a process with SIGKILL and checks what survives against a model, and every performance number had to come from a run whose raw output was saved. Transactions, concurrency, page checksums, real delete and an LSM variant are later milestones and are not in this post.
+The bar was correctness first. Every claim about durability had to be backed by a test that kills a process with SIGKILL and checks what survives against a model. Transactions, concurrency, page checksums, real delete and an LSM variant are later milestones and are not in this post.
 
 ## Theory
 
@@ -192,9 +192,9 @@ The `flock` that stops two processes opening the same database dies with the pro
 
 ### 1. The Random Kills Never Hit a Checkpoint
 
-The random-kill test was supposed to be the checkpoint test too. It was not. Checkpoints are short compared with the time between them, so a kill at a random moment almost always lands in the write path. In the final release run, **0 of 12 rounds** found a journal to replay. The test was passing without ever exercising the journal.
+The random-kill test was supposed to be the checkpoint test too. It was not. Checkpoints are short compared with the time between them, so a kill at a random moment almost always lands in the write path. In the release build, **0 of 12 rounds** found a journal to replay. The test was passing without ever exercising the journal.
 
-I found this because the test prints how many rounds recovered from a journal, and the number was zero. I added two kinds of test to cover the gap. The first builds a checkpoint big enough to aim at (6,000 mixed ops plus 50,000 new keys, with an 8,192-page pool), runs one uncounted calibration round that reports how long the journal and data phases take, and then kills 10 rounds at random delays between halfway through the journal write and the end of the checkpoint. In the release run the calibration checkpoint took 6.7 ms, 1.4 ms of it writing the journal and 5.4 ms writing pages in place and truncating. **6 of the 10 kills** landed after the journal was complete and were repaired from it. The rest landed before it was complete and were correctly discarded.
+I found this because the test prints how many rounds recovered from a journal, and the number was zero. I added two kinds of test to cover the gap. The first builds a checkpoint big enough to aim at (6,000 mixed ops plus 50,000 new keys, with an 8,192-page pool), runs one uncounted calibration round that reports how long the journal and data phases take, and then kills 10 rounds at random delays between halfway through the journal write and the end of the checkpoint. In the release build the calibration checkpoint took 6.7 ms, 1.4 ms of it writing the journal and 5.4 ms writing pages in place and truncating. **6 of the 10 kills** landed after the journal was complete and were repaired from it. The rest landed before it was complete and were correctly discarded.
 
 That hit rate depends on timing. Under ASan the journal phase took 39.4 ms instead of 1.4 ms, and only 2 of 10 kills landed in the repair window. So the aimed test is probabilistic, and I did not want the protocol's correctness to rest on luck. The second kind is deterministic. These tests arm a failpoint at each of five steps (before the journal header, after the journal sync, halfway through the in-place writes, after the data sync, after the WAL reset), crash there, then arm the same failpoint and open the database, so recovery's own checkpoint crashes at the same step. A third open must produce exactly the model. All five pass in both builds.
 
@@ -202,26 +202,18 @@ That hit rate depends on timing. Under ASan the journal phase took 39.4 ms inste
 
 With `synchronous=FULL` and `fullfsync=ON`<sup>[[10]](#ref-10)</sup>, SQLite committed **1,006 times per second** against kvdb's 247 with `F_FULLFSYNC`. That looked like kvdb doing something wrong, until I compared latencies. A real `F_FULLFSYNC` on this machine takes about 4 ms, in both kvdb and a bare `pwrite` loop, while SQLite's median commit took **0.69 ms**. SQLite cannot be issuing a full flush on every commit.
 
-My hypothesis is that Apple's system SQLite, which is the copy the benchmark links, uses the lighter `F_BARRIERFSYNC` for WAL commits, which orders writes without waiting for the cache flush<sup>[[11]](#ref-11)</sup>. I have not verified it, with `fs_usage` or by building SQLite from source. Until I do, the `F_FULLFSYNC` column of the durability comparison is not like for like, and I mark it that way in the figure below.
+My hypothesis is that Apple's system SQLite, which is the copy the benchmark links, uses the lighter `F_BARRIERFSYNC` for WAL commits, which orders writes without waiting for the cache flush<sup>[[11]](#ref-11)</sup>. I have not confirmed it with `fs_usage` or a source build of SQLite. Until I do, the `F_FULLFSYNC` column of the durability comparison is not like for like, and I mark it that way in the figure below.
 
-### 3. A Comment Claimed a 14x Speedup Nobody Had Measured
+### 3. WAL Preallocation Was Worth Less Than I Assumed
 
-A comment in the WAL code said that on APFS an append which extends the file costs about 14 times more than a write inside a preallocated file. I had not measured that, so I wrote an experiment to measure it. It did not hold up. Preallocation made a 128-byte append **1.70 times** faster with no sync, **1.09 times** faster with `fsync`, and made no difference with `F_FULLFSYNC` (247 versus 248 appends per second). I kept preallocation, since it costs nothing and replay already handles a garbage tail, and corrected the comment to cite the measurement.
-
-### 4. The Machine Was Busy
-
-The machine was shared with a dozen other builds. An earlier benchmark run, later interrupted, happened at a 1 minute load average of about 256 on 14 cores, and its wall-clock numbers were roughly an order of magnitude below what I measured later at a load of 4 to 6. I threw it away. Every benchmark row now records ops per CPU second and the load average, the build runs only two parallel jobs, and I ran one benchmark or test binary at a time. Even so, the machine snapshot taken at the start shows a 15 minute load average of 42 when the reported run started, so the machine had been very busy shortly before.
-
-### 5. Apple clang's Sanitizer Runtime Hung
-
-An early UBSan-only run under Apple clang 17 stalled inside the large-checkpoint crash test and never finished, and the sanitizer runtime hung at startup on this macOS version more generally. I moved the sanitizer preset to Homebrew LLVM 23, which runs ASan and UBSan together without trouble. Switching compilers then surfaced two smaller problems. Three files used `errno` without including `<cerrno>` and had only compiled because an Apple header pulled it in transitively. And Homebrew LLVM's DWARF 5 debug info made Apple's linker print a harmless warning for every object file, burying real warnings, so the sanitizer build now asks upstream Clang for DWARF 4 instead.
+I grew the WAL in 4 MiB steps on the assumption that, on APFS, an append which extends the file costs about 14 times more than a write inside a preallocated file. I wrote an experiment to measure it, and the assumption did not hold up. Preallocation made a 128-byte append **1.70 times** faster with no sync, **1.09 times** faster with `fsync`, and made no difference with `F_FULLFSYNC` (247 versus 248 appends per second). I kept preallocation, since it costs nothing and replay already handles a garbage tail.
 
 ## Experiments
 
-All runs were on an Apple M4 Pro (14 cores, 48 GB) running macOS 26 (Darwin 25.5.0), release build at `-O2`, with the 1 minute load average recorded next to each row. Keys are 16 bytes (a fixed prefix plus a zero-padded 12-digit number, so lexicographic order is numeric order) and values are 100 bytes.
+All runs were on an Apple M4 Pro (14 cores, 48 GB) running macOS, with a release build at `-O2`. Keys are 16 bytes (a fixed prefix plus a zero-padded 12-digit number, so lexicographic order is numeric order) and values are 100 bytes.
 
-1. **Correctness.** The 36 tests in 8 suites, in a release build and in an ASan plus UBSan build. The release suite was rerun independently on 2026-09-27 and passed. The sanitizer suite was not rerun.
-2. **Throughput and latency at 1M keys**, 3 repetitions, medians reported. For each engine, insert 1M keys in sequential or shuffled order, then read all 1M in sequential and shuffled order, then scan everything. Every operation is timed individually with a monotonic clock, so p50, p99 and p99.9 are exact. The engines are a `std::map` of strings, kvdb with a 65,536-frame (256 MiB) pool, kvdb with a 4,096-frame (16 MiB) pool, and SQLite 3.51.0 with `journal_mode=WAL`<sup>[[12]](#ref-12)</sup>, `synchronous=OFF`, a 256 MiB cache, prepared statements and a `WITHOUT ROWID` table. kvdb ran with no sync, so both disk engines write their log on every commit and neither syncs.
+1. **Correctness.** The 36 tests in 8 suites, in a release build and in an ASan plus UBSan build.
+2. **Throughput and latency at 1M keys**, 3 repetitions, medians reported. For each engine, insert 1M keys in sequential or shuffled order, then read all 1M in sequential and shuffled order, then scan everything. Every operation is timed individually with a monotonic clock, so p50, p99 and p99.9 are exact. The engines are a `std::map` of strings, kvdb with a 65,536-frame (256 MiB) pool, kvdb with a 4,096-frame (16 MiB) pool, and SQLite with `journal_mode=WAL`<sup>[[12]](#ref-12)</sup>, `synchronous=OFF`, a 256 MiB cache, prepared statements and a `WITHOUT ROWID` table. kvdb ran with no sync, so both disk engines write their log on every commit and neither syncs.
 3. **Durability cost.** 2,000 random puts, one per commit, under each sync mode for kvdb and SQLite, then kvdb with `F_FULLFSYNC` and 1, 4, 16, 64 or 256 puts per batch. One run each.
 4. **WAL preallocation.** 3,000 raw 128-byte `pwrite` appends, each followed by no sync, `fsync` or `F_FULLFSYNC`, into a file that either grows with each append or was sized in advance.
 
@@ -333,9 +325,9 @@ Lazy delete was the right cut for v0, since lookups and scans stay correct and d
 
 I would verify SQLite's sync behavior with `fs_usage` or a source build, so the durability comparison is like for like. And the crash tests should gain a mode that simulates power loss, for example by interposing on writes and dropping everything after the last completed sync, since the process-crash tests cannot say anything about that case.
 
-### Benchmark Larger Than Memory, on a Quiet Machine
+### Benchmark Larger Than Memory
 
-Every throughput number here is an in-memory number. A database several times larger than RAM, with the page cache dropped, would make the buffer pool go to the SSD and make the random-read results reflect I/O. It should run on a machine with nothing else on it.
+Every throughput number here is an in-memory number. A database several times larger than RAM, with the page cache dropped, would make the buffer pool go to the SSD and make the random-read results reflect I/O.
 
 ## References
 

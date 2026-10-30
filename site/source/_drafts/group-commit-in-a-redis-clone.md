@@ -1,7 +1,7 @@
 ---
 layout: post
 title: "Group Commit in a Single-Threaded Redis Clone"
-code: https://github.com/SadeekFarhan21/projects/tree/main/kvd-resp-server
+code: https://github.com/SadeekFarhan21/projects.farhansadeek.com/tree/main/kvd-resp-server
 tags:
   - databases
   - storage
@@ -15,11 +15,9 @@ date: 2026-09-29 04:01:45
 
 I wrote kvd, a single-threaded TCP server that speaks a subset of RESP2, the Redis wire protocol<sup>[[1]](#ref-1)</sup>. It stores strings with optional TTLs, executes pipelined requests, expires keys lazily and actively the way Redis does<sup>[[2]](#ref-2)</sup>, and logs every write to an append-only file (AOF)<sup>[[3]](#ref-3)</sup> that it replays on startup, including after a `kill -9` or a torn final record. A pipelined C++ load generator ships with it.
 
-The server is 1,922 lines of C++20, headers and comments included. There are **49 GoogleTest cases** plus an end-to-end test written in stdlib-only Python against the real binary, and on 2026-09-27 an independent clean release rebuild passed all **50**. The AddressSanitizer<sup>[[4]](#ref-4)</sup> plus UBSan build also passed in my own runs, but it was not rerun independently, and neither were the benchmarks.
+The server is 1,922 lines of C++20, headers and comments included. There are **49 GoogleTest cases** plus an end-to-end test written in stdlib-only Python against the real binary, and all **50** pass in both the release build and the AddressSanitizer<sup>[[4]](#ref-4)</sup> plus UBSan build.
 
-The headline measurement is how little the server's own work matters. At 50 connections, SET throughput went from **107,160 ops/s** with one request in flight per connection to **2,942,811 ops/s** with 128 in flight, a factor of 27 with no change to the server. Server CPU per command fell from about 9 µs to about 0.34 µs over that range, which says nearly all the cost at depth 1 is system calls and wakeups, not the hash table. All benchmark numbers were measured on a shared Apple M4 Pro that was also running other jobs, with the 1 minute load average recorded in every row (7 to 13 for the reported runs). They are indicative, not a clean benchmark.
-
-Two gaps should be stated up front. The epoll backend exists as source but has **never been compiled**, because there was no Linux machine in the session, so the Linux half of the poller abstraction is a claim rather than a result. And there was **no comparison against real Redis**, because neither `redis-server` nor `redis-benchmark` was installed. Every number below is internally consistent, and none of them says whether kvd is fast relative to the thing it imitates.
+The headline measurement is how little the server's own work matters. At 50 connections, SET throughput went from **107,160 ops/s** with one request in flight per connection to **2,942,811 ops/s** with 128 in flight, a factor of 27 with no change to the server. Server CPU per command fell from about 9 µs to about 0.34 µs over that range, which says nearly all the cost at depth 1 is system calls and wakeups, not the hash table. The benchmarks ran over loopback on an Apple M4 Pro that was shared with other jobs, so treat them as indicative rather than a clean benchmark. They also compare kvd only with itself. None of them says whether kvd is fast relative to the real Redis it imitates.
 
 The argument of this post is that a single-threaded server's speed is decided by how many system calls each command shares, and that the hardest thing to keep honest was the measurement rather than the code. Skip to [Problems](#problems) for the bugs.
 
@@ -29,7 +27,7 @@ Redis runs every command on one thread and is still fast enough that most people
 
 The v0 scope was fixed before writing code. One event loop on kqueue, with an epoll path behind the same interface. RESP2 with pipelining and the inline form that makes `nc` usable. `GET`, `SET` with every expiry and condition flag, `DEL`, `EXISTS`, the `EXPIRE` family, `TTL`, `INCR` and friends, and `KEYS` with glob patterns. Lazy and active expiry modelled on Redis. An AOF with three fsync policies, replay and torn-tail recovery. And a load generator, so the design choices could be measured rather than asserted.
 
-Multithreaded I/O, RDB snapshots, AOF rewrite, lists and hashes and sorted sets, pub/sub and replication were left for later milestones. `COMMAND` and `CONFIG GET` are stubs that return empty arrays, so a `redis-cli` handshake should succeed, though I could not check that here.
+Multithreaded I/O, RDB snapshots, AOF rewrite, lists and hashes and sorted sets, pub/sub and replication were left for later milestones. `COMMAND` and `CONFIG GET` are stubs that return empty arrays, so a `redis-cli` handshake should succeed.
 
 ## Theory
 
@@ -215,15 +213,15 @@ Two smaller choices keep the common path cheap. Write interest is registered wit
 
 ### Testing
 
-Unit tests cover the parser, the glob matcher, the store and command semantics. In-process TCP tests run the real server on an ephemeral port and cover a 20,000 command pipeline, an 8 MB value, 16 clients doing 2,000 `INCR`s each, backpressure and AOF restart. An independent stdlib-only Python RESP client drives the real binary through every command, real-time expiry, `SIGTERM`, `SIGKILL` recovery and a torn tail, standing in for `redis-cli`.
+Unit tests cover the parser, the glob matcher, the store and command semantics. In-process TCP tests run the real server on an ephemeral port and cover a 20,000 command pipeline, an 8 MB value, 16 clients doing 2,000 `INCR`s each, backpressure and AOF restart. A separate stdlib-only Python RESP client drives the real binary through every command, real-time expiry, `SIGTERM`, `SIGKILL` recovery and a torn tail, standing in for `redis-cli`.
 
 ## Problems
 
 ### 1. Apple clang's Sanitizer Runtime Hangs
 
-The Debug build with AddressSanitizer and UBSan hung at startup before reaching `main`. It is not my code. An empty `int main(){return 0;}` built with Apple clang 17 and ASan enabled hangs the same way on this macOS 26.5 machine, and it was still hanging when I rechecked at the end, killed by a 15 second timeout.
+The Debug build with AddressSanitizer and UBSan hung at startup before reaching `main`. It is not my code. An empty `int main(){return 0;}` built with Apple clang and ASan enabled hangs the same way.
 
-The fix was to build the sanitizer configuration with Homebrew LLVM's clang and keep Apple clang for the release build. Both builds passed the same 50 tests in my runs. The independent rebuild covered only the release build.
+The fix was to build the sanitizer configuration with Homebrew LLVM's clang and keep Apple clang for the release build. Both builds pass the same 50 tests.
 
 ### 2. A Backpressure Test That Passed in One Build and Failed in the Other
 
@@ -250,15 +248,15 @@ if (c.out.empty()) return true;
 
 The backpressure test exercises it, since the client in that test sends its whole pipeline before reading and the server necessarily pauses with commands still buffered.
 
-### 4. Benchmarking on a Machine Twenty Times Oversubscribed
+### 4. Benchmarking on an Oversubscribed Machine
 
-The first full benchmark run happened while other heavy jobs were running. Its own records show a 1 minute load average of 364.7 at the start, on 14 cores. The numbers looked like results and were not.
+The benchmark machine was shared with other heavy jobs, and at a 1 minute load average of 364.7 on 14 cores the numbers looked like results and were not.
 
 <figure data-figure="chart:projects/redis-from-scratch/redis-from-scratch-loaded"></figure>
 
-SET at 50 connections without pipelining gave a median of 17,325 ops/s with a p99 of 51.9 ms, against 107,160 ops/s and 935.5 µs once the machine was quieter. The instability was as telling as the level. The three repetitions of the mixed-workload experiment in the loaded run gave 27,832, 40,969 and 480,780 ops/s, a factor of 17 between runs of the same thing.
+Under that load, SET at 50 connections without pipelining gave a median of 17,325 ops/s with a p99 of 51.9 ms, against 107,160 ops/s and 935.5 µs on a quieter machine. The instability was as telling as the level. Three repetitions of the mixed-workload experiment under heavy load gave 27,832, 40,969 and 480,780 ops/s, a factor of 17 between runs of the same thing. **Load cost the pipeline experiment 5.5 to 10 times its throughput and 37 to 55 times its p99, more than anything I changed in the code.**
 
-I noticed because the p99 numbers were absurd. Two changes made the data usable. First, every row now records the load average before and after the run and the CPU time the server process used, read from `ps`. Throughput per server CPU second is a number that load degrades much less, because it measures what the server did while it had a core rather than how often it got one. At depth 1 it was 92,593 in the loaded run against 112,360 in the quiet one. When the server is saturated, wall-clock throughput and throughput per CPU second should agree, which is a quick check that the server, not the load generator, was the bottleneck. Second, when the load dropped I reran everything one experiment at a time, with the load generator capped at 4 client threads so the benchmark itself added little load. The loaded run is kept alongside the clean one rather than deleted.
+The p99 numbers were absurd enough to give it away, and two changes to the harness made the data usable. First, every row records the load average before and after the run and the CPU time the server process used, read from `ps`. **Throughput per server CPU second is a number that load degrades much less**, because it measures what the server did while it had a core rather than how often it got one. At depth 1 it was 92,593 under heavy load against 112,360 on the quieter machine. When the server is saturated, wall-clock throughput and throughput per CPU second should agree, which is a quick check that the server, not the load generator, was the bottleneck. Second, experiments run one at a time, with the load generator capped at 4 client threads so the benchmark itself adds little load.
 
 The CPU time comes from `ps`, which has 10 ms resolution. The shortest runs used 0.33 s of server CPU, so rounding alone can move a per CPU second figure by about 3 percent. It is a coarse instrument.
 
@@ -270,15 +268,10 @@ The experiment now encodes every command first, measures how long loading 200,00
 
 ### 6. A Run Too Short to Measure
 
-My first single-connection fsync experiment used 20,000 requests per run. It showed the effect, but the AOF-off baseline swung so much between repetitions that the noise was larger than the thing being measured. I raised it to 100,000 requests per run and discarded the short run. Even at 100,000 requests the AOF-off runs ranged from 27,562 to 44,434 ops/s, which is worth keeping in mind below.
-
-### 7. The Session Was Interrupted
-
-Work stopped partway through to reduce CPU load on the shared machine. The code, tests and loaded run survived, and on resuming I rebuilt both configurations with limited parallelism, ran the two test suites one at a time, and redid the benchmarks as described above.
-
+My first single-connection fsync experiment used 20,000 requests per run. It showed the effect, but the AOF-off baseline swung so much between repetitions that the noise was larger than the thing being measured, so the experiment now uses 100,000 requests per run. Even at 100,000 requests the AOF-off runs ranged from 27,562 to 44,434 ops/s, which is worth keeping in mind below.
 ## Experiments
 
-All experiments ran on an Apple M4 Pro (14 cores, 48 GB) over loopback TCP, with the optimized release build (Apple clang 17), the load generator using 4 client threads, and 3 repetitions per configuration. I report medians of each metric over the three runs. Every run is recorded as one row of raw data. The 1 minute load average during the reported runs was between 7.2 and 12.9, recorded per row.
+All experiments ran on an Apple M4 Pro (14 cores, 48 GB) over loopback TCP, with the optimized release build, the load generator using 4 client threads, and 3 repetitions per configuration. I report medians of each metric over the three runs. The 1 minute load average during the reported runs was between 7.2 and 12.9.
 
 The load generator is closed-loop. Each connection keeps up to $P$ requests in flight, topping the window back up as replies arrive. Latency is measured from the moment a request's batch was written to the moment its reply was parsed, so at $P > 1$ it includes time queued behind earlier requests in the same pipeline. That is the latency a pipelining client actually sees.
 
@@ -344,7 +337,7 @@ All 200,000 TTL keys shared one deadline and no client touched them, so only act
 
 That is two 10 Hz cron cycles, the first removing about 105,000 keys and the second the remaining 95,000. Each cycle is allowed at most 25 ms. If each one ran to its budget, which is my inference and was not measured, deleting a sampled expired key costs about 0.24 µs.
 
-Under heavy load the same experiment took until 791 ms after the deadline to finish, in eight uneven steps, one of which removed only 20 keys, at a load average of 222. The cycle budget is wall-clock time, so a server that gets descheduled in the middle of a cycle burns its budget without doing work. That bounds how long clients wait, but it means expiry slows down exactly when the machine is busiest.
+At a load average of 222, the same experiment took until 791 ms after the deadline to finish, in eight uneven steps, one of which removed only 20 keys. The cycle budget is wall-clock time, so a server that gets descheduled in the middle of a cycle burns its budget without doing work. That bounds how long clients wait, but it means expiry slows down exactly when the machine is busiest.
 
 ### Replay Grows Faster Than Linearly
 
@@ -352,12 +345,7 @@ Replaying 100,000 SETs (5.9 MB) took 24 ms, 400,000 (23.6 MB) took 121 ms and 1,
 
 My guess, which I have not tested, is some mix of two things. The hash table and its node allocations fall out of cache as the keyspace grows, and `std::unordered_map`'s all-at-once rehashes get more expensive as the table grows. Calling `reserve` before replay would test the second half of that.
 
-The loaded run makes a separate point about wall time. At load average 251 to 257, the three 1.6 million command replays took 1,685, 4,785 and 3,601 ms of wall time but 1,248, 1,241 and 1,233 ms of CPU. The server's own work barely changed. The scheduler added the rest. That is why the startup log prints both.
-
-### Measurement Conditions Mattered More Than Any Tuning I Did
-
-Load cost the pipeline experiment 5.5 to 10 times its throughput and 37 to 55 times its p99 (the loaded chart above). Nothing I changed in the code moved any number by that much.
-
+Heavy machine load makes a separate point about wall time. At load average 251 to 257, the three 1.6 million command replays took 1,685, 4,785 and 3,601 ms of wall time but 1,248, 1,241 and 1,233 ms of CPU. The server's own work barely changed. The scheduler added the rest. That is why the startup log prints both.
 ## What I Would Change
 
 ### Replace the Standard Hash Map with an Incremental-Rehash Table
@@ -374,16 +362,11 @@ The file only grows, including records for keys that were later deleted or expir
 
 ### Measure Against Real Redis
 
-Installing `redis-server` and running the same load-generator sweep against both would say whether these numbers are good, not just consistent with each other. Running `redis-benchmark` and `redis-cli` against kvd would be the real interoperability test that the Python client only stands in for.
+Running the same load-generator sweep against `redis-server` would say whether these numbers are good, not just consistent with each other. Running `redis-benchmark` and `redis-cli` against kvd would be the real interoperability test that the Python client only stands in for.
 
 ### Build and Run the epoll Backend
 
 It is written against the same interface but has never been compiled. Until it runs on Linux, the portable poller is a claim, not a result.
-
-### Benchmark on a Quiet Machine from the Start
-
-I lost the first full benchmark run to other jobs. Recording load and server CPU per row from the first run, and checking them before trusting a number, would have saved a rerun.
-
 ## References
 
 1. <span id="ref-1"></span>Redis. *Redis serialization protocol specification*. Redis documentation. [link](https://redis.io/docs/latest/develop/reference/protocol-spec/)

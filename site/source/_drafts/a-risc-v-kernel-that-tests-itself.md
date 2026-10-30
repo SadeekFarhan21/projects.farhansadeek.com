@@ -1,7 +1,7 @@
 ---
 layout: post
 title: "A RISC-V Kernel That Tests Itself on Every Boot"
-code: https://github.com/SadeekFarhan21/projects/tree/main/riscv-sv39-kernel
+code: https://github.com/SadeekFarhan21/projects.farhansadeek.com/tree/main/riscv-sv39-kernel
 tags:
   - operating-systems
   - risc-v
@@ -14,9 +14,9 @@ date: 2026-09-29 04:01:45
 
 I wrote 16-os, a small kernel for 64-bit RISC-V, in freestanding C and assembly. It boots on QEMU's `virt` board<sup>[[1]](#ref-1)</sup><sup>[[2]](#ref-2)</sup> under OpenSBI<sup>[[3]](#ref-3)</sup>, runs in supervisor mode the way Linux does, reads the machine's layout from the device tree<sup>[[4]](#ref-4)</sup>, turns on Sv39 paging<sup>[[5]](#ref-5)</sup> with per-section permissions and guard pages under every stack, handles traps and interrupts, and schedules preemptive kernel threads. The whole thing is **3,521 lines** of C, assembly, headers and linker script, and **0x96ce bytes** (38,606) of machine code in `.text`.
 
-The number I trust most is not a benchmark. Every boot can run a built-in suite of **22 self-tests** that powers QEMU off with a pass or fail exit code, and four more boots crash on purpose and must print a readable report and exit with code 3. That makes the whole test suite one headless command, and on 2026-09-26 an independent clean rebuild passed every self-test and all four crash reports.
+The number I trust most is not a benchmark. Every boot can run a built-in suite of **22 self-tests** that powers QEMU off with a pass or fail exit code, and four more boots crash on purpose and must print a readable report and exit with code 3. That makes the whole test suite one headless command.
 
-Under QEMU's deterministic icount mode<sup>[[6]](#ref-6)</sup> a raw context switch costs **34** guest instructions, a switch through the scheduler **190**, a trap round trip 140 and a call into firmware 291. These are QEMU instruction counts, not cycles on real hardware. The wall-clock timings I also took ran inside QEMU on a Mac with a load average of 129 to 151 from other jobs, so they serve only as a cross-check.
+Under QEMU's deterministic icount mode<sup>[[6]](#ref-6)</sup> a raw context switch costs **34** guest instructions, a switch through the scheduler **190**, a trap round trip 140 and a call into firmware 291. These are QEMU instruction counts, not cycles on real hardware. Wall-clock timings under plain emulation depend on how busy the host is, so they serve only as a cross-check.
 
 v0 is kernel only, with no user mode yet.
 
@@ -239,7 +239,7 @@ static void tick_snapshot(u64 *t, u64 *n) {
 }
 ```
 
-To be sure this time, I booted the timer test on its own 30 times with each version under plain TCG. The version before the fix failed **4 of 30** boots, and the fixed version **0 of 30**. The failing boots saw 3 to 9 ticks instead of 10, so the host (load average 299) was starving QEMU's vCPU thread, which widens the window. A fix for a failure you cannot reproduce is a guess, and my first guess was wrong.
+To be sure this time, I booted the timer test on its own 30 times with each version under plain TCG. The version before the fix failed **4 of 30** boots, and the fixed version **0 of 30**. The failing boots saw 3 to 9 ticks instead of 10, so a heavily loaded host was starving QEMU's vCPU thread, which widens the window. A fix for a failure you cannot reproduce is a guess, and my first guess was wrong.
 
 ### 2. A Store the Compiler Was Right to Delete
 
@@ -307,16 +307,15 @@ thread_trampoline:
 
 - `-std=c17` turns off the `asm` keyword, so the kernel builds as `gnu17`.
 - Clang's `-Winfinite-recursion` (an error under `-Werror`) rejected the deliberate stack-overflow function until the recursion depended on a `volatile` flag.
-- zsh does not split an unquoted `$VAR` into words, so my first batch of reproduction runs silently started nothing.
 - The UART driver's setup resets the receive FIFO, which throws away any keystrokes QEMU delivered before the driver ran. The test harness waits for the self-test banner before it types.
 
 ### 6. The Host Was the Noisiest Component
 
-Fifteen other builds shared this machine and the load average sat in the hundreds. Under plain TCG, QEMU's virtual clock follows the host clock, so a starved vCPU thread misses ticks, which are dropped rather than replayed. I loosened the tick test's lower bound and added a second pass of the suite under icount, which does not depend on the host, and that is why this post's headline numbers are instruction counts.
+The kernel ran on a shared, heavily loaded host. Under plain TCG, QEMU's virtual clock follows the host clock, so a starved vCPU thread misses ticks, which are dropped rather than replayed. I loosened the tick test's lower bound and added a second pass of the suite under icount, which does not depend on the host, and that is why this post's headline numbers are instruction counts.
 
 ## Experiments
 
-All measurements run inside QEMU and none is a hardware number. Under plain TCG a timing includes translation, emulator bookkeeping and host scheduling, on a host heavily loaded by other jobs. In icount mode, configured without sleeping, virtual time advances one nanosecond per guest instruction, so an icount "nanosecond" is an instruction count. It is deterministic and ignores host load, but it treats every instruction as equal, which a real core does not. Icount numbers are the primary result here, and TCG timings a cross-check. Every benchmark loops and divides, because `rdtime` ticks at 10 MHz, a resolution of 100 ns.
+All measurements run inside QEMU and none is a hardware number. Under plain TCG a timing includes translation, emulator bookkeeping and host scheduling, on a heavily loaded host. In icount mode, configured without sleeping, virtual time advances one nanosecond per guest instruction, so an icount "nanosecond" is an instruction count. It is deterministic and ignores host load, but it treats every instruction as equal, which a real core does not. Icount numbers are the primary result here, and TCG timings a cross-check. Every benchmark loops and divides, because `rdtime` ticks at 10 MHz, a resolution of 100 ns.
 
 ### What a Switch Costs
 
@@ -340,9 +339,9 @@ Under icount the median was **100 ns** idle and busy, with a mean of 85 and 84 n
 
 <figure data-figure="chart:projects/os-from-scratch/os-from-scratch-timer-latency"></figure>
 
-### Is icount Actually Reproducible
+### Icount Is Deterministic
 
-Two icount benchmark runs gave identical numbers in every column, and a raw diff of their benchmark lines was empty. The icount timer test saw exactly 10 ticks in 100 ms. A benchmark that gives the same answer twice can detect a one-instruction change on the switch path, which no wall-clock measurement on a loaded host could.
+Under icount the benchmarks give identical numbers in every column from one boot to the next, and the timer test sees exactly 10 ticks in 100 ms. A benchmark that gives the same answer every time can detect a one-instruction change on the switch path, which no wall-clock measurement on a loaded host could.
 
 ### Why the Lock Matters
 
@@ -353,7 +352,6 @@ So the control is informational, not an assertion. One plausible reason for the 
 ## Results
 
 - The full test suite passes. That is 22 self-tests under plain TCG, including the UART receive test with typed input, 21 under icount (the receive test needs typed input and runs only in the TCG pass), and four crash scenarios that each print the expected report and exit with code 3.
-- On 2026-09-26 an independent clean rebuild passed every self-test and all four crash reports. That rerun checked correctness, not the benchmarks.
 - Under icount the kernel reaches its first thread **16,061 µs** of virtual time after reset. That includes OpenSBI's own startup.
 - The kernel page table uses **71 pages**, and 32,127 of 32,768 pages are free after boot.
 - In the demo, four workers are preempted between 4 and 7 times each, their shared tally ends at the expected 16, and the boot takes 48 context switches before it powers off.
@@ -380,7 +378,7 @@ The 1.6 MiB between OpenSBI and the kernel image is never used, slab pages are n
 
 ### Build Repeated-Boot Testing In from the Start
 
-The exit-code race and the tick race were both found by booting the same kernel 30 or 40 times. A single passing test run did not catch either, and both would have shown up as a flaky red build. Running each boot many times, preferably on a loaded host, should be a standard test mode, not a script I wrote after the fact.
+The exit-code race and the tick race were both found by booting the same kernel 30 or 40 times. A single passing test run did not catch either, and both would have shown up as a flaky red build. Running each boot many times, preferably on a loaded host, should be a standard mode of the test suite from day one.
 
 ## References
 

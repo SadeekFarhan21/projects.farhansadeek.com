@@ -1,0 +1,246 @@
+---
+import Base from "../../layouts/Base.astro";
+import Masthead from "../../components/Masthead.astro";
+import Foot from "../../components/Foot.astro";
+import course from "../../../public/data/18314.json" with { type: "json" };
+
+interface Item {
+  text: string;
+  children: Item[];
+  image?: { src: string; alt: string };
+}
+
+const sets = course.sets as {
+  set: number;
+  title: string;
+  due: string;
+  url: string;
+  sections: { label: string; items: Item[] }[];
+}[];
+
+// The sets are due across a session range; show that rather than a problem count,
+// since one bullet often covers several textbook exercises.
+const dueSessions = sets.map((s) => Number(s.due.match(/\d+/)?.[0] ?? 0));
+---
+
+<Base
+  title="18.314 Combinatorial Analysis — problem sets"
+  description={`All ${sets.length} problem sets from MIT 18.314 Combinatorial Analysis (Fall 2014), taught by Richard Stanley.`}
+>
+  <Masthead
+    kicker="18.314 Combinatorial Analysis"
+    stats={[
+      `${sets.length} problem sets`,
+      `sessions ${Math.min(...dueSessions)}–${Math.max(...dueSessions)}`,
+      course.term,
+      course.instructor,
+    ]}
+  />
+
+  <div class="shell">
+    <aside class="rail">
+      <div class="rail-group">
+        <div class="rail-title">Problem sets</div>
+        <ol class="set-list">
+          {sets.map((s) => (
+            <li><a href={`#ps${s.set}`}>{s.set}<span>{s.due.replace("Due in ", "due ")}</span></a></li>
+          ))}
+        </ol>
+      </div>
+      <div class="rail-group">
+        <div class="rail-title">Handouts</div>
+        {course.handouts.map((h) => (
+          <div class="handout"><a href={h.file}>{h.title} (PDF)</a></div>
+        ))}
+      </div>
+    </aside>
+
+    <main class="stream">
+      <div class="stream-status">
+        <span>{course.institution} · {course.license}</span>
+        <a href={course.source}>Original course page</a>
+      </div>
+
+      <p class="course-note">
+        Most problems are assigned from the required textbook: {course.textbook} {course.note}
+      </p>
+
+      {sets.map((s) => (
+        <section class="pset" id={`ps${s.set}`}>
+          <div class="pset-margin">
+            <span class="pset-number">{s.set}</span>
+            <span class="pset-due">{s.due.replace("Due in ", "")}</span>
+          </div>
+          <div class="pset-body">
+            <h2>
+              {s.title}
+              <a class="pset-source" href={s.url}>OCW</a>
+            </h2>
+            {s.sections.map((sec) => (
+              <div class="section">
+                <h3>{sec.label}</h3>
+                <ul>
+                  {sec.items.map((item) => (
+                    <li>
+                      {item.text}
+                      {item.image && <img src={item.image.src} alt={item.image.alt} loading="lazy" />}
+                      {item.children.length > 0 && (
+                        <ul>
+                          {item.children.map((kid) => (
+                            <li>
+                              {kid.text}
+                              {kid.children.length > 0 && (
+                                <ul>{kid.children.map((g) => <li>{g.text}</li>)}</ul>
+                              )}
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ))}
+          </div>
+        </section>
+      ))}
+    </main>
+  </div>
+
+  <Foot />
+</Base>
+
+<style>
+  .set-list {
+    list-style: none;
+    margin: 0.7rem 0 0;
+    padding: 0;
+    font-family: var(--font-mono);
+    font-size: 0.72rem;
+  }
+
+  .set-list a {
+    display: flex;
+    justify-content: space-between;
+    gap: 0.6rem;
+    padding: 0.3rem 0;
+    color: var(--ink-mid);
+    text-decoration: none;
+    border-bottom: 1px solid var(--rule);
+  }
+
+  .set-list a:hover { color: var(--accent); }
+  .set-list span { letter-spacing: 0.06em; }
+
+  .handout {
+    font-family: var(--font-mono);
+    font-size: 0.72rem;
+    padding: 0.3rem 0;
+  }
+
+  .handout a { color: var(--ink-mid); }
+  .handout a:hover { color: var(--accent); }
+
+  .course-note {
+    max-width: var(--measure);
+    margin: 1.6rem 0 0;
+    font-size: 0.95rem;
+    color: var(--ink-mid);
+    line-height: 1.6;
+  }
+
+  .pset {
+    display: grid;
+    grid-template-columns: 96px minmax(0, 1fr);
+    gap: 2rem;
+    padding: 2.3rem 0;
+    border-bottom: 1px solid var(--rule);
+    scroll-margin-top: 1.5rem;
+  }
+
+  .pset-margin {
+    font-family: var(--font-mono);
+    font-size: 0.74rem;
+    color: var(--ink-mid);
+    text-align: right;
+    padding-top: 0.35rem;
+  }
+
+  .pset-number {
+    display: block;
+    font-family: var(--font-display);
+    font-size: 1.6rem;
+    font-weight: 600;
+    color: var(--ink);
+    line-height: 1;
+    margin-bottom: 0.3rem;
+  }
+
+  .pset-due { display: block; letter-spacing: 0.06em; }
+
+  .pset-body { min-width: 0; }
+
+  .pset-body h2 {
+    font-family: var(--font-display);
+    font-size: 1.25rem;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+    margin: 0 0 1.1rem;
+    display: flex;
+    align-items: baseline;
+    gap: 0.7rem;
+  }
+
+  .pset-source {
+    font-family: var(--font-mono);
+    font-size: 0.62rem;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--ink-mid);
+    border-bottom: 1px solid var(--rule-strong);
+  }
+
+  .pset-source:hover { color: var(--accent); border-color: var(--accent); }
+
+  .section + .section { margin-top: 1.4rem; }
+
+  .section h3 {
+    font-family: var(--font-mono);
+    font-size: 0.64rem;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--combinatorics);
+    margin: 0 0 0.5rem;
+  }
+
+  .section ul {
+    margin: 0;
+    padding-left: 1.1rem;
+    max-width: var(--measure);
+  }
+
+  .section li {
+    font-size: 1rem;
+    line-height: 1.6;
+    margin-bottom: 0.4rem;
+  }
+
+  .section ul ul {
+    margin-top: 0.4rem;
+    padding-left: 1.1rem;
+  }
+
+  .section img {
+    display: block;
+    max-width: 100%;
+    margin: 0.7rem 0;
+    border: 1px solid var(--rule);
+    background: var(--paper-raised);
+  }
+
+  @media (max-width: 860px) {
+    .pset { grid-template-columns: 1fr; gap: 0.8rem; }
+    .pset-margin { text-align: left; display: flex; align-items: baseline; gap: 0.7rem; }
+    .pset-number { margin-bottom: 0; }
+  }
+</style>

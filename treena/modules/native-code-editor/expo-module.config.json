@@ -1,0 +1,9 @@
+{
+  "platforms": ["apple", "android"],
+  "apple": {
+    "modules": ["NativeCodeEditorModule"]
+  },
+  "android": {
+    "modules": ["expo.modules.nativecodeeditor.NativeCodeEditorModule"]
+  }
+}

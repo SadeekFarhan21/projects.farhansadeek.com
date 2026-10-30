@@ -2,7 +2,7 @@
 layout: post
 title: "A Pill Dispenser Built Around One Dose Record"
 tab_title: PillifyAI
-code: https://github.com/SadeekFarhan21/projects/tree/main/pillifyai
+code: https://github.com/SadeekFarhan21/projects.farhansadeek.com/tree/main/pillifyai
 date: 2025-03-28 22:45:01
 tags:
   - hardware
@@ -28,7 +28,7 @@ For one hackathon, the scope came down to three things:
 - A server that owns the schedule and the truth about each dose.
 - A dispenser that asks the server what's due and answers with what it did.
 
-This was a hackathon build, not a clinical product. The point was to get the loop working across a phone, a server and a microcontroller in one overnight session, from 22:45 on 28 March to 18:14 on 29 March 2025. The app came to about 5,954 lines of TypeScript and JavaScript, the server about 3,364 lines of JavaScript, the ESP32 sketch 307 lines, and the Pi scripts 383 lines of Python.
+This was a hackathon build, not a clinical product. The point was to get the loop working across a phone, a server and a microcontroller in one overnight session at the end of March 2025. The app came to about 5,954 lines of TypeScript and JavaScript, the server about 3,364 lines of JavaScript, the ESP32 sketch 307 lines, and the Pi scripts 383 lines of Python.
 
 ## Technical Details
 
@@ -153,7 +153,7 @@ def set_speed(self, speed_percent):
         duty = MID_DUTY + (range_width * speed_percent / 100)
 ```
 
-Speed is a percentage of the distance from neutral to the end of the range, in whichever direction the servo is already turning. Other scripts include `servo_examples.py`, `slow_counterclockwise.py` and a CLI menu.
+Speed is a percentage of the distance from neutral to the end of the range, in whichever direction the servo is already turning. Around the class sit a few small scripts for slow counterclockwise motion and a command-line menu for driving the servo by hand.
 
 ### The Buzzer
 

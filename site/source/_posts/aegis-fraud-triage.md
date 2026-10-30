@@ -2,7 +2,7 @@
 layout: post
 title: "Fraud Triage That Spares the LLM 97% of Transactions"
 tab_title: Aegis
-code: https://github.com/SadeekFarhan21/projects/tree/main/aegis-fraud-triage
+code: https://github.com/SadeekFarhan21/projects.farhansadeek.com/tree/main/aegis-fraud-triage
 date: 2026-02-06 18:44:45
 tags:
   - fraud-detection
@@ -15,7 +15,7 @@ description: >-
 
 A bank's fraud desk can't read every card transaction by hand, and running an LLM on every transaction is too slow and too expensive. Aegis is the funnel I built for that problem at TartanHacks, CMU's hackathon, in February 2026, with my teammate Jalen Francis. Transactions stream through a Redpanda (Kafka) topic. A cheap gate, a scikit-learn Isolation Forest<sup>[[1]](#ref-1)</sup> plus hand-written rules, scores each one. Anything above 0.55 becomes an alert, and a pool of three asyncio workers hands each alert to a ReAct-style agent<sup>[[2]](#ref-2)</sup> on a local Ollama model, which answers BLOCK, CLEAR or FLAG_FOR_REVIEW. Flagged alerts wait for a human, and every verdict goes into a FAISS index<sup>[[3]](#ref-3)</sup> that later investigations can search.
 
-The whole design rests on the gate, so after the hackathon I measured it on 5,000 synthetic transactions per run over 6 runs. It sent **2.9 to 3.2 percent** of traffic to the agent with **precision 1.000 in every run**, so not one normal transaction reached the LLM. Recall was 0.368 to 0.403, and it splits cleanly by amount. In a 3,000-transaction run **every fraud above $1,000 was caught**, so the gate's recall is the share of fraud above that line.
+The whole design rests on the gate, so I measured it on 5,000 synthetic transactions per run over 6 runs. It sent **2.9 to 3.2 percent** of traffic to the agent with **precision 1.000 in every run**, so not one normal transaction reached the LLM. Recall was 0.368 to 0.403, and it splits cleanly by amount. In a 3,000-transaction run **every fraud above $1,000 was caught**, so the gate's recall is the share of fraud above that line.
 
 ## Why It Matters
 
@@ -49,7 +49,7 @@ A sentence embedding maps text to a vector where similar meanings sit close toge
 
 ### Architecture
 
-The producer, consumer and workers all run as background asyncio tasks inside one FastAPI process. Redpanda v24.1.1, Neo4j 5 and Redis 7 come up through docker-compose, and Ollama runs on the host.
+The producer, consumer and workers all run as background asyncio tasks inside one FastAPI process. Redpanda, Neo4j and Redis run as containers beside it, and Ollama runs on the host.
 
 <figure class="excal" data-diagram="aegis-fraud-triage-architecture"><a href="/img/diagrams/aegis-fraud-triage-architecture.webp" class="excal-link" aria-label="Open the diagram full size"><img src="/img/diagrams/aegis-fraud-triage-architecture.webp" alt="Aegis pipeline: a mock producer publishes to a Redpanda topic, a consumer and gate scores each transaction, those above 0.55 wait in an asyncio queue read by three ReAct agent workers on Ollama llama3.2:3b (up to 6 steps, 9 tools), BLOCK or CLEAR is applied at once while FLAG_FOR_REVIEW goes to a human queue with a Slack webhook, and verdicts are stored in an in-memory FAISS index that is retrieved into the agent's prompt." width="2400" height="2218" loading="lazy" decoding="async"></a></figure>
 
@@ -149,9 +149,9 @@ I wanted a reviewer's decision today to inform a similar investigation tomorrow.
 
 ## Experiments
 
-I measured the first stage on its own, because it decides what everything downstream sees. The harness runs the gate's scoring engine on a stream that mirrors the producer's mix: about 8 percent fraud (foreign merchants, amounts from the producer's `_get_anomaly_amount`), 12 percent elevated normal (domestic, 2 to 5 times the category amount) and the rest normal. Each run is 5,000 transactions, over 3 seeds and 2 simulated clock start times (12:00Z and 03:00Z), with numpy and Python seeds set per seed.
+I measured the first stage on its own, because it decides what everything downstream sees. The harness runs the gate's scoring engine on a stream that mirrors the producer's mix: about 8 percent fraud (foreign merchants, with amounts drawn the way the producer draws them), 12 percent elevated normal (domestic, 2 to 5 times the category amount) and the rest normal. Each run is 5,000 transactions, over 3 seeds and 2 simulated clock start times (12:00Z and 03:00Z).
 
-I recorded precision, recall, the share of traffic flagged and throughput. A second script, run on a 3,000-transaction stream, breaks recall down by fraud amount. Everything ran on 2026-09-29 with Python 3.14.7, scikit-learn 1.9.1 and numpy 2.5.3, single-threaded on my Mac. The traffic and its labels are synthetic, so the numbers describe the gate against the pipeline's own model of fraud, not against real fraud.
+Each run records precision, recall, the share of traffic flagged and single-threaded throughput, and a separate 3,000-transaction stream breaks recall down by fraud amount. The traffic and its labels are synthetic, so the numbers describe the gate against the pipeline's own model of fraud, not against real fraud.
 
 ## Results
 

@@ -73,6 +73,7 @@ var keywords = escapeAttribute(pageKeywords);
 
     <!-- RSS 订阅 -->
     <link rel="alternate" type="application/atom+xml" title="<%= config.title %>" href="<%= url_for('atom.xml') %>">
+    <link rel="alternate" type="text/plain" title="<%= config.title %> (plain-text index)" href="<%= url_for('projects.txt') %>">
 
     <!-- 分页 prev/next 信号 -->
     <% if (hasPager && page.prev) { %>

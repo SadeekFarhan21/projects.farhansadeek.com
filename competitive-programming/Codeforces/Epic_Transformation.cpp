@@ -1,0 +1,52 @@
+#include "bits/stdc++.h"
+using namespace std;
+#define int long long
+
+void solve() {
+    int n;
+    cin >> n;
+    vector<int> v(n);
+    map<int, int> m;
+    priority_queue<pair<int, int>> pq;
+    for (int i = 0; i < n; i++) {
+        cin >> v[i];
+        m[v[i]]++;
+    }
+
+    for (auto x : m) {
+        pq.push({x.second, x.first});
+    }
+
+
+    int count = n;
+    while (pq.size() > 1) {
+        // cout << pq.top().first << " " << pq.top().second << "\n";
+        auto [count1, element1] = pq.top();
+        pq.pop();
+        // cout << pq.top().first << " " << pq.top().second << "\n";
+        auto [count2, element2] = pq.top();
+        pq.pop();
+        
+        count1--;
+        count2--;
+        count -= 2;
+
+        if(count1 > 0){
+            pq.push({count1, element1});
+        }
+        if(count2 > 0){
+            pq.push({count2, element2});
+        }
+    }
+    cout << count << "\n";
+}
+
+int32_t main() {
+    int t;
+    cin >> t;
+    for (int i = 0; i < t; i++) {
+        // cout << "Testcase" << i + 1 << "\n";
+        solve();
+        // cout << '\n';
+    }
+}

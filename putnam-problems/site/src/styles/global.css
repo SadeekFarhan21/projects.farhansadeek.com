@@ -1,0 +1,592 @@
+/* ------------------------------------------------------------------
+   Putnam Archive — a reading surface for competition mathematics.
+   Aesthetic: letterpress problem book. Warm paper, deep ink, hairline
+   rules, marginal numbering, one oxblood accent.
+   ------------------------------------------------------------------ */
+
+:root {
+  --paper: #14130f;
+  --paper-raised: #1c1a15;
+  --paper-sunk: #100f0c;
+  --ink: #ece7db;
+  --ink-soft: #57514733;
+  --ink-mid: #9b9384;
+  --rule: #2e2b23;
+  --rule-strong: #443f34;
+  --accent: #d4694f;
+  --accent-soft: #d4694f18;
+
+  --nt: #d4694f;
+  --combinatorics: #62a892;
+  --analysis: #7ba3d8;
+  --linear-algebra: #c9924e;
+  --abstract-algebra: #a98cc4;
+  --geometry: #4fb0aa;
+  --probability: #c7ad57;
+  --algebra: #c07f9e;
+
+  --font-display: "Fraunces", "Iowan Old Style", Georgia, serif;
+  --font-body: "Newsreader", Georgia, "Times New Roman", serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, monospace;
+
+  --measure: 63ch;
+  color-scheme: dark;
+}
+
+
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--font-body);
+  font-size: 1.0625rem;
+  line-height: 1.62;
+  font-optical-sizing: auto;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Paper tooth. Cheap, static, and it stops the ground reading as flat #fff. */
+.grain {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  opacity: 0.05;
+  mix-blend-mode: screen;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='3'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='.5'/%3E%3C/svg%3E");
+}
+
+
+
+a {
+  color: inherit;
+  text-underline-offset: 3px;
+  text-decoration-thickness: 1px;
+}
+
+/* ---------------------------------------------------------- masthead */
+
+.masthead {
+  position: relative;
+  z-index: 1;
+  border-bottom: 1px solid var(--rule-strong);
+  background: var(--paper-raised);
+}
+
+.masthead-inner {
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: 2.4rem 2rem 1.9rem;
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 2rem;
+  flex-wrap: wrap;
+}
+
+.wordmark {
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: clamp(2rem, 5.4vw, 3.5rem);
+  line-height: 0.95;
+  letter-spacing: -0.024em;
+  margin: 0;
+  text-decoration: none;
+  display: block;
+}
+
+.wordmark em {
+  font-style: italic;
+  font-weight: 400;
+  color: var(--accent);
+}
+
+.masthead-meta {
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--ink-mid);
+  margin: 0.75rem 0 0;
+  display: flex;
+  gap: 1.1rem;
+  flex-wrap: wrap;
+}
+
+.masthead-meta span::before {
+  content: "";
+  display: inline-block;
+  width: 5px;
+  height: 5px;
+  background: var(--accent);
+  margin-right: 0.5rem;
+  vertical-align: 0.15em;
+  transform: rotate(45deg);
+}
+
+
+/* ------------------------------------------------------------ shell */
+
+.shell {
+  position: relative;
+  z-index: 1;
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: 0 2rem 6rem;
+  display: grid;
+  grid-template-columns: 232px minmax(0, 1fr);
+  gap: 3.5rem;
+  align-items: start;
+}
+
+/* ------------------------------------------------------------ rail */
+
+/* Taller than a short window once the account form is in it, so it scrolls
+   on its own rather than leaving its bottom out of reach while stuck. */
+.rail {
+  position: sticky;
+  top: 1.75rem;
+  padding-top: 2.5rem;
+  max-height: calc(100vh - 1.75rem);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+}
+
+.rail-group + .rail-group {
+  margin-top: 2.1rem;
+}
+
+.rail-title {
+  font-family: var(--font-mono);
+  font-size: 0.66rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--ink-mid);
+  margin: 0 0 0.85rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid var(--rule);
+}
+
+.facet {
+  display: flex;
+  align-items: baseline;
+  gap: 0.6rem;
+  width: 100%;
+  background: none;
+  border: 0;
+  padding: 0.3rem 0;
+  font-family: var(--font-body);
+  font-size: 0.95rem;
+  color: var(--ink);
+  cursor: pointer;
+  text-align: left;
+  line-height: 1.3;
+}
+
+.facet[aria-pressed="true"] { font-weight: 500; }
+
+/* The unselected state dims the dot, not the button: opacity on the button
+   applied to the tally too, dropping that 0.7rem text to 2.5:1 on paper. */
+.facet .dot {
+  width: 9px;
+  height: 9px;
+  flex: 0 0 9px;
+  border-radius: 50%;
+  border: 1.5px solid currentColor;
+  transform: translateY(-1px);
+  opacity: 0.55;
+  transition: opacity 0.14s;
+}
+
+.facet:hover .dot { opacity: 1; }
+
+.facet[aria-pressed="true"] .dot {
+  background: currentColor;
+  opacity: 1;
+}
+
+.facet .tally {
+  margin-left: auto;
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  color: var(--ink-mid);
+}
+
+.range-row {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  color: var(--ink-mid);
+}
+
+/* A min/max pair is one control: the two inputs are stacked on a single
+   track, so only their thumbs take the pointer and the span between them
+   reads as the selected range. */
+.range {
+  position: relative;
+  height: 24px;
+  margin-top: 0.15rem;
+}
+
+.range-track,
+.range-fill {
+  position: absolute;
+  top: 50%;
+  height: 2px;
+  transform: translateY(-50%);
+  pointer-events: none;
+}
+
+.range-track {
+  left: 0;
+  right: 0;
+  background: var(--rule-strong);
+}
+
+.range-fill {
+  background: var(--accent);
+}
+
+.range input[type="range"] {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 24px;
+  margin: 0;
+  background: none;
+  pointer-events: none;
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+.range input[type="range"]::-webkit-slider-runnable-track {
+  background: none;
+  border: 0;
+}
+
+.range input[type="range"]::-moz-range-track {
+  background: none;
+  border: 0;
+}
+
+.range input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  pointer-events: auto;
+  width: 15px;
+  height: 15px;
+  border-radius: 50%;
+  background: var(--accent);
+  border: 2px solid var(--paper);
+  cursor: grab;
+}
+
+.range input[type="range"]::-moz-range-thumb {
+  pointer-events: auto;
+  width: 15px;
+  height: 15px;
+  border-radius: 50%;
+  background: var(--accent);
+  border: 2px solid var(--paper);
+  cursor: grab;
+}
+
+.range input[type="range"]:focus-visible::-webkit-slider-thumb {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.range input[type="range"]:focus-visible::-moz-range-thumb {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.search {
+  width: 100%;
+  font-family: var(--font-body);
+  font-size: 0.95rem;
+  padding: 0.55rem 0.7rem;
+  background: var(--paper-raised);
+  border: 1px solid var(--rule-strong);
+  border-radius: 2px;
+  color: var(--ink);
+}
+
+.search:focus {
+  outline: 2px solid var(--accent);
+  outline-offset: -1px;
+}
+
+.rail-reset {
+  margin-top: 1.5rem;
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  background: none;
+  border: 0;
+  border-bottom: 1px solid var(--rule-strong);
+  /* Top padding only, so the 24px target grows upward and the underline
+     stays tight against the text. */
+  padding: 6px 0 2px;
+  color: var(--ink-mid);
+  cursor: pointer;
+}
+
+.rail-reset:hover { color: var(--accent); border-color: var(--accent); }
+
+/* ----------------------------------------------------------- stream */
+
+.stream { padding-top: 2.5rem; min-width: 0; }
+
+.stream-status {
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  letter-spacing: 0.08em;
+  color: var(--ink-mid);
+  text-transform: uppercase;
+  padding-bottom: 1.1rem;
+  border-bottom: 2px solid var(--ink);
+  margin-bottom: 0;
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.entry {
+  display: grid;
+  grid-template-columns: 96px minmax(0, 1fr);
+  gap: 2rem;
+  padding: 2.3rem 0;
+  border-bottom: 1px solid var(--rule);
+  animation: rise 0.5s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@keyframes rise {
+  from { opacity: 0; transform: translateY(7px); }
+  to { opacity: 1; transform: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .entry { animation: none; }
+}
+
+.entry[hidden] { display: none; }
+
+.entry-margin {
+  font-family: var(--font-mono);
+  font-size: 0.74rem;
+  line-height: 1.5;
+  color: var(--ink-mid);
+  text-align: right;
+  padding-top: 0.35rem;
+}
+
+.entry-slot {
+  display: block;
+  font-family: var(--font-display);
+  font-size: 1.6rem;
+  font-weight: 600;
+  color: var(--ink);
+  letter-spacing: -0.02em;
+  line-height: 1;
+  margin-bottom: 0.3rem;
+}
+
+.entry-year {
+  display: block;
+  letter-spacing: 0.1em;
+}
+
+.entry-body { min-width: 0; }
+
+.entry-tags {
+  display: flex;
+  gap: 0.45rem;
+  flex-wrap: wrap;
+  align-items: center;
+  margin-bottom: 0.9rem;
+}
+
+.tag {
+  font-family: var(--font-mono);
+  font-size: 0.64rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  /* 24px floor: these are real links, and the rail is touch-first on phones. */
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  padding: 0.2rem 0.5rem;
+  border: 1px solid currentColor;
+  border-radius: 2px;
+  white-space: nowrap;
+  text-decoration: none;
+}
+
+.tag:hover { background: var(--accent-soft); }
+
+.diff {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  color: var(--ink-mid);
+  letter-spacing: 0.08em;
+}
+
+.diff-bar {
+  display: flex;
+  gap: 2px;
+}
+
+.diff-bar i {
+  width: 5px;
+  height: 11px;
+  background: var(--rule-strong);
+  border-radius: 1px;
+}
+
+.diff-bar i.on { background: var(--accent); }
+
+.statement { font-size: 1.0625rem; max-width: var(--measure); }
+.statement p { margin: 0 0 0.85rem; }
+.statement p:last-child { margin-bottom: 0; }
+
+.tex-list { padding-left: 0; margin: 0.6rem 0 0.9rem; list-style: none; }
+.tex-list li { margin: 0.35rem 0; }
+.tex-list li.marked { display: flex; gap: 0.7rem; }
+.tex-list li.marked .marker { font-variant-numeric: tabular-nums; color: var(--ink-mid); flex: none; }
+.tex-list li:not(.marked) { display: flex; gap: 0.7rem; }
+.tex-list li:not(.marked)::before {
+  content: "—";
+  color: var(--ink-mid);
+  flex: none;
+}
+
+.tex-figure-note,
+.tex-note {
+  font-family: var(--font-mono);
+  font-size: 0.74rem;
+  color: var(--ink-mid);
+}
+
+.tex-raw {
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+  background: var(--paper-sunk);
+  padding: 0.1rem 0.3rem;
+}
+
+.tex-table-wrap { overflow-x: auto; margin: 0.9rem 0; }
+.tex-table { border-collapse: collapse; font-size: 0.95rem; }
+.tex-table td { border: 1px solid var(--rule); padding: 0.3rem 0.7rem; }
+
+/* KaTeX sits on a serif page; let displays scroll rather than overflow. */
+.katex-display {
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: 0.35rem 0;
+  margin: 0.9rem 0;
+}
+
+.katex { font-size: 1.04em; }
+
+.empty {
+  padding: 5rem 0;
+  text-align: center;
+  color: var(--ink-mid);
+  font-style: italic;
+}
+
+/* ----------------------------------------------------------- footer */
+
+.foot {
+  position: relative;
+  z-index: 1;
+  border-top: 1px solid var(--rule-strong);
+  background: var(--paper-raised);
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  color: var(--ink-mid);
+  line-height: 1.8;
+}
+
+.foot-inner {
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: 2.2rem 2rem;
+  display: flex;
+  justify-content: space-between;
+  gap: 1.5rem;
+  flex-wrap: wrap;
+}
+
+.foot a { color: var(--accent); }
+
+/* --------------------------------------------------------- responsive */
+
+@media (max-width: 900px) {
+  .shell {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0;
+    padding: 0 1.25rem 4rem;
+  }
+
+  .rail {
+    position: static;
+    max-height: none;
+    overflow: visible;
+    padding: 2rem 0 0;
+    border-bottom: 2px solid var(--ink);
+    padding-bottom: 1.75rem;
+  }
+
+  .rail-columns {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 1.5rem 2rem;
+  }
+
+  .rail-group + .rail-group { margin-top: 0; }
+
+  .stream { padding-top: 1.75rem; }
+
+  .entry {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0.55rem;
+    padding: 1.9rem 0;
+  }
+
+  .entry-margin {
+    text-align: left;
+    display: flex;
+    align-items: baseline;
+    gap: 0.6rem;
+    padding-top: 0;
+  }
+
+  .entry-slot { font-size: 1.25rem; margin-bottom: 0; }
+
+  .masthead-inner { padding: 1.9rem 1.25rem 1.5rem; }
+  .foot-inner { padding: 1.9rem 1.25rem; }
+  .diff { margin-left: 0; width: 100%; }
+}

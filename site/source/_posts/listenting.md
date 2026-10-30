@@ -2,7 +2,7 @@
 layout: post
 title: "Learning Chinese by Ear From Sun Tzu"
 tab_title: ListenTing
-code: https://github.com/SadeekFarhan21/projects/tree/main/listenting
+code: https://github.com/SadeekFarhan21/projects.farhansadeek.com/tree/main/listenting
 date: 2026-05-23 09:30:30
 tags:
   - llm
@@ -49,7 +49,7 @@ The system has an offline half and an online half, joined by static files.
 
 <figure class="excal" data-diagram="listenting-architecture"><a href="/img/diagrams/listenting-architecture.webp" class="excal-link" aria-label="Open the diagram full size"><img src="/img/diagrams/listenting-architecture.webp" alt="ListenTing architecture in two halves: an offline pipeline where qinkan.net text goes through prepare-chapters.ts into public/chapters/1..13.json (13 chapters, 290 sentences, 169 idiom tags), which feeds enrich-translations.ts (Haiku 4.5 fills en) and generate-audio.ts (ElevenLabs per sentence, rewrites timestamps from real durations), plus ch1-4.mp3 ElevenLabs narration uploaded by Mulong, feeding a browser PWA (Player, CheckinModal, IdiomCard with 28 curated entries, VaultSheet on device) that calls the Next.js API routes /api/question, /api/grade, /api/speak, /api/transcribe and /api/translate." width="2400" height="4505" loading="lazy" decoding="async"></a></figure>
 
-The offline half lives in `apps/web/scripts`. `prepare-chapters.ts` reads the source text and writes one JSON per chapter into `public/chapters`. `enrich-translations.ts` fills an English field on each sentence with Claude Haiku 4.5, and `generate-audio.ts` narrates each sentence with ElevenLabs and writes the timestamps from the real durations.
+In the offline half, `prepare-chapters.ts` reads the source text and writes one JSON per chapter into `public/chapters`. `enrich-translations.ts` fills an English field on each sentence with Claude Haiku 4.5, and `generate-audio.ts` narrates each sentence with ElevenLabs and writes the timestamps from the real durations.
 
 The online half is a Next.js 15 and React 19 app with Tailwind, packaged as a PWA with a small service worker. The player loads a chapter's JSON as a static file, asks the server whether `/audio/chN.mp3` exists, and plays it if it does. If not, it falls back to the browser's speech synthesis and walks the sentences one by one. The API routes hold the keys: Haiku 4.5 writes the check-in question, Sonnet 4.5 grades the answer, ElevenLabs reads the question aloud, and `/api/translate` translates on demand.
 
@@ -59,7 +59,7 @@ The check-in has its own small state machine, and it is where the model calls li
 
 ## Implementation
 
-I wrote the pipeline scripts, the Next.js app and the slide deck. Alex organised the repo and converted the source text to UTF-8. Mulong uploaded the source files and the four chapter recordings. The scripts, API routes, lib and components come to 2,841 lines.
+I wrote the pipeline scripts and the Next.js app. Alex converted the source text to UTF-8, and Mulong supplied the source files and the four chapter recordings. The scripts, API routes, lib and components come to 2,841 lines.
 
 ### Segmenting the Text
 
@@ -149,11 +149,11 @@ A check-in that makes a heritage speaker feel stupid defeats the point of the ap
 
 ## Experiments
 
-Two measurements needed no paid keys.
+Two measurements describe what the offline pipeline produces.
 
-**Segmentation.** I ran `npx tsx scripts/prepare-chapters.ts`, which needs no keys, and counted sentences and idiom tags per chapter with `scripts/measure.py`.
+**Segmentation.** The segmenter's output for all 13 chapters, counted as sentences and idiom tags per chapter.
 
-**Narration.** I ran `ffprobe` on the four chapter MP3s to read their durations and format. The same script reports file sizes.
+**Narration.** The four narrated chapter MP3s, measured for duration, format and file size.
 
 ## Results
 

@@ -1,0 +1,40 @@
+---
+interface Props {
+  kicker?: string;
+  stats: string[];
+}
+const { kicker, stats } = Astro.props;
+---
+
+<header class="masthead">
+  <div class="masthead-inner">
+    <div>
+      <h1 class="masthead-title">
+        <a class="wordmark" href="/">Putnam <em>Archive</em></a>
+        {kicker && <span class="sr-only"> — {kicker}</span>}
+      </h1>
+      <p class="masthead-meta">
+        {kicker && <span>{kicker}</span>}
+        {stats.map((s) => <span>{s}</span>)}
+      </p>
+    </div>
+  </div>
+</header>
+
+<style>
+  /* The wordmark is the page's h1; the heading itself adds no styling of its own. */
+  .masthead-title {
+    margin: 0;
+    font: inherit;
+    font-weight: inherit;
+  }
+
+  .sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+  }
+</style>

@@ -8,7 +8,7 @@ tags:
   - quarto
 description: "A Quarto notebook that turns 5,065 sampled flights into a 1,909-airport network and finds Chicago O'Hare or Atlanta at the top of all six centrality rankings."
 date: 2026-02-05 18:06:05
-code: https://github.com/SadeekFarhan21/projects/tree/main/airport-network-analysis
+code: https://github.com/SadeekFarhan21/projects.farhansadeek.com/tree/main/airport-network-analysis
 ---
 
 This project analyzes a sampled **flight network** and the interconnected airports within it. Using the descriptive techniques in Kolaczyk and Csárdi's *Statistical Analysis of Network Data with R*<sup>[[1]](#ref-1)</sup>, I explore structural patterns in the graph and identify important airports and routes. It is one Quarto notebook in R with igraph<sup>[[6]](#ref-6)</sup>. A sample of 5,065 flights becomes a directed graph of **1,909 airports and 2,574 routes**, and it has the hub-and-spoke shape airlines build: a small number of airports sit at the center with many connections, while most airports have only a few routes each.
@@ -63,7 +63,7 @@ Centrality measures identify the most important or influential nodes in a networ
 
 ### Building the Network
 
-The data loads straight from `sampled_flights.csv`. I selected only the columns needed for the analysis, constructed edge and vertex lists, and built both directed and undirected versions of the graph.
+The analysis starts from the 5,065 sampled flights. I selected only the columns needed for the analysis, constructed edge and vertex lists, and built both directed and undirected versions of the graph.
 
 ```r
 sampled_df <- sampled_df |>
@@ -114,8 +114,6 @@ top_betweenness <- sort(betw_cent, decreasing = TRUE)[1:10]
 ```
 
 Hub and authority scores use `hub_score()` and `authority_score()` on the directed graph. To compare the measures, I put degree, betweenness, eigenvector centrality and strength for every airport into one data frame and drew a `pairs()` scatter matrix.
-
-Claude Code helped with two pieces: the basic network property table and the centrality visualization in Problem 1.
 
 ## Problems
 

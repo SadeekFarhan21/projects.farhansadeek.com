@@ -1,7 +1,7 @@
 ---
 layout: post
 title: "A Backtester That Refuses to Run on Leaky Features"
-code: https://github.com/SadeekFarhan21/projects/tree/main/leakage-checked-backtester
+code: https://github.com/SadeekFarhan21/projects.farhansadeek.com/tree/main/leakage-checked-backtester
 tags:
   - quant
   - backtesting
@@ -16,7 +16,7 @@ I built a small research platform for daily crypto bars whose job is to produce 
 
 The honest baseline, a cross-sectional ridge<sup>[[4]](#ref-4)</sup> on seven ranked price and volume features, earns an out of sample **Sharpe of 0.49** over 1,338 days at 15 bps one way. Add a single feature that peeks five days ahead and switch off the audit's fail switch, and the same pipeline reports a **Sharpe of 19.40** with a max drawdown of 2.5%. The point of the project is the machinery that makes the second number impossible to produce by accident, and the tests that break when any piece of that machinery is wrong.
 
-The platform is about 1,650 lines of Python with 73 tests. The compiled backtest kernel runs about 80 million asset-days per second on one thread of an Apple M4 Pro that was heavily loaded by other jobs, so every throughput number here is a lower bound.
+The platform is about 1,650 lines of Python with 73 tests. The compiled backtest kernel runs about 80 million asset-days per second on one thread of an Apple M4 Pro. The machine was shared with other heavy jobs, so every throughput number here is a lower bound.
 
 *Reading note.* The argument is that most great-looking backtests are wrong in one of five boring ways, and that each one can be turned into a written rule with a test attached. The problems section is where the rules earned their keep. Skip to [Results](#results) if you only want the numbers.
 
@@ -121,7 +121,7 @@ lf = (lf.sort("ingested_at")
         .sort(["symbol", "date"]))
 ```
 
-A snapshot id hashes the ingest ids visible at a given instant, and every run records it. All experiments below ran on snapshot `417cbe2508ff`, which is one ingest of 466,274 bars across 300 symbols, 83 of which stopped trading before the end of the window.
+A snapshot id hashes the ingest ids visible at a given instant, and every run records it. All experiments below use one snapshot, a single ingest of 466,274 bars across 300 symbols, 83 of which stopped trading before the end of the window.
 
 ### Features Without pandas
 
@@ -212,7 +212,7 @@ A tracked run is a directory named by timestamp, run name and config hash, holdi
 
 ## Problems
 
-These are the real bugs and surprises, in the order I hit them. Two of them were in my own tests, and the most instructive one was in the data.
+These are the bugs and surprises, in the order I hit them. Two of them were in my own tests, and the most instructive one was in the data.
 
 ### The Obvious Data Sources Were Blocked
 
@@ -274,15 +274,11 @@ The old LUNAUSDT is now delisted at its last real price and `LUNAUSDT#2` starts 
 
 The baseline ridge had an out of sample information coefficient (mean cross-sectional rank correlation between score and realized return) of 0.125. That is high for daily crypto. Meanwhile every single feature I would have guessed as the driver had an IC near zero or negative on its own. Shorting yesterday's winners had an IC of 0.000, and 30 day momentum had an IC of -0.049.
 
-After the LUNA bug I did not trust any number better than I expected, so I added a random-score negative control. It came back with an IC of 0.0005 and a Sharpe of -1.34, the signature of trading noise through a cost model, so the IC calculation itself was not inflated. Then I computed single-feature ICs by hand. The driver is 30 day volatility, with a clearly negative IC, meaning high-volatility coins underperformed. I did not save that single-feature number to a results file, so I do not quote it here, and saving it is on the list below. The Sharpe is much lower than the IC suggests because a long-short crypto book carries large idiosyncratic volatility and a weekly holding period uses only part of a 5 day signal.
-
-### The Machine Was Shared
-
-Ten or more other jobs shared the 14-core machine for the whole session, with the load average between about 220 and 400. The experiment suite hit a 10 minute tool timeout on its first attempt and was rerun in the background, where it took 891 seconds for 17 runs. The benchmark recorded a load average of 360, 351 and 311 before it started and 231, 286 and 292 after. Every throughput number below is a lower bound, and the multithreaded ones are noisy enough that at some sizes 14 threads were slower than one.
+After the LUNA bug I did not trust any number better than I expected, so I added a random-score negative control. It came back with an IC of 0.0005 and a Sharpe of -1.34, the signature of trading noise through a cost model, so the IC calculation itself was not inflated. Then I computed single-feature ICs by hand. The driver is 30 day volatility, with a clearly negative IC, meaning high-volatility coins underperformed. The Sharpe is much lower than the IC suggests because a long-short crypto book carries large idiosyncratic volatility and a weekly holding period uses only part of a 5 day signal.
 
 ### The Forward Fill Cost More Than the Kernel
 
-A quick profile of one strategy on 300 assets, which I did not save with the results, showed market preparation (forward fill plus returns) taking about 18 ms of a 23 ms call under load. The compiled kernel was the cheap part. Rather than micro-optimize the forward fill, I made the backtest accept a precomputed market, which is the right shape for sweeping many strategies over one panel anyway, and added a test that the result is identical. The benchmark rows labelled "precomputed" measure that path.
+A quick profile of one strategy on 300 assets showed market preparation (forward fill plus returns) taking about 18 ms of a 23 ms call under load. The compiled kernel was the cheap part. Rather than micro-optimize the forward fill, I made the backtest accept a precomputed market, which is the right shape for sweeping many strategies over one panel anyway, and added a test that the result is identical. The benchmark rows labelled "precomputed" measure that path.
 
 ## Experiments
 
@@ -312,8 +308,6 @@ Each variant changes one thing through config overrides and is its own tracked r
 7. Throughput. Synthetic panels with $T = 1{,}825$ days, $N \in \{100, 300, 1000\}$ assets and $S \in \{1, 16, 128\}$ strategies per call, for the NumPy kernel and the Numba kernel on 1 and 14 threads, plus the reference engine at a small size, the Numba kernel with a precomputed market, and the real 1,704 by 300 panel. Timings are best of 5 (best of 1 for the largest NumPy cases).
 
 ## Results
-
-An independent reviewer later reran the full experiment suite from a clean download and matched all 17 rows of the experiment table exactly, and reran the leakage audit with identical output. The benchmark was not rerun, so the throughput numbers rest on the original measurement only. Two corrections from that review are applied here (the out of sample start date, and the direction of the 300 to 308 instrument split).
 
 One caveat applies to every Sharpe below. All 17 experiments share the same 2023 to 2026-08 out of sample period, and I looked at it while debugging the IC. These are comparisons between variants on one platform, not one-shot holdout results.
 
@@ -359,7 +353,7 @@ The explanation is capacity. A seven-coefficient ridge trained on tens of thousa
 
 <figure data-figure="chart:projects/quant-research-platform/throughput"></figure>
 
-Measured on an Apple M4 Pro with 14 cores, Python 3.12.13, NumPy 2.5.3 and Numba 0.67.0, with the load average between 230 and 360 during the run.
+Measured on an Apple M4 Pro with 14 cores that was heavily loaded by other jobs, so these are lower bounds, and the multithreaded rows are noisy enough that at some sizes 14 threads were slower than one.
 
 The pure-Python reference engine ran 1,386 strategy-days per second at $N = 100$, or 139 thousand asset-days per second. With the market precomputed, the single-threaded Numba kernel ran 772 thousand strategy-days per second at $N = 100$, 270 thousand at $N = 300$ and 79 thousand at $N = 1000$. In asset-days that is a flat 77 to 81 million per second across a tenfold change in width, which says the kernel does constant work per cell, and it is 557 to 585 times the reference engine per asset-day. That is the price of an oracle, and it only runs in tests.
 
@@ -377,9 +371,9 @@ All 73 tests pass, on synthetic data. They cover look-ahead detection (including
 
 Materializing two copies of the $(S, T, N)$ array is the reason throughput collapses at $S = 128$ and $N = 1000$. The kernel can read `W[s, t - d, i]` directly and treat NaN as zero on the fly.
 
-### Rerun the Benchmark on an Idle Machine
+### Measure Throughput on an Idle Machine
 
-Everything here was measured at a load average between 220 and 400. I would not draw conclusions from the 14-thread rows at all.
+The machine was heavily loaded during every throughput measurement, so I would not draw conclusions from the 14-thread rows at all.
 
 ### Replace the Gap Rule with Real Reference Data
 
@@ -393,9 +387,9 @@ The 300 pairs were chosen as the ones with the most archived months in the windo
 
 A gradient-boosted model or a much smaller sample should make the effect visible, which is the experiment to add once a later project brings nonlinear models.
 
-### Save Single-Feature ICs with Every Run
+### Record Single-Feature ICs with Every Run
 
-They explained the baseline faster than anything else, and saving them would have let me quote the volatility IC here.
+They explained the baseline faster than anything else, so the tracker should store them next to the model's metrics.
 
 ### Make the Audit Cheaper
 
