@@ -14,12 +14,20 @@ html .toc-article * {
    in head.ejs). The theme's `*` rule reads --aerlume-local-font, so setting
    it switches every element; the Math rules below keep math in its own font. */
 :root {
+  /* Palette from farhansadeek.com, so every site reads as one. Every color
+     in site.css, figures.css and the theme's aerlume.css reads these. */
+  --bg: #fafafa;
+  --text: #171717;
+  --muted: #525252;
+  --underline: #d4d4d4;
+  --border: #e5e5e5;
+  --surface: #f2f2f2;
   --aerlume-local-font: "Quicksand";
   /* Post blocks (code, tables, charts, diagrams, display math, details):
      one frame and one vertical rhythm, see "Post blocks" below. */
   --block-gap: 1.5rem;
   --block-radius: 8px;
-  --block-border: #e2e8f0;
+  --block-border: var(--border);
   --block-pad: 16px;
 }
 .index-about i,
@@ -140,7 +148,7 @@ html .post-content .table-wrap {
   -webkit-overflow-scrolling: touch;
 }
 html .post-content .table-wrap:focus-visible {
-  outline: 2px solid #006cac;
+  outline: 2px solid var(--text);
   outline-offset: 2px;
 }
 html .post-content .table-wrap > table {
@@ -336,7 +344,7 @@ html .post-content pre * {
   }
 }
 .toc-article a.is-active {
-  color: #4990E2 !important;
+  color: var(--text) !important;
   font-weight: 650;
 }
 
@@ -375,7 +383,7 @@ html .toc-article li.active > a {
   font-weight: 700;
 }
 html .toc-article a.is-trail {
-  color: #2f3339 !important;
+  color: var(--text) !important;
   font-weight: 700;
 }
 
@@ -415,21 +423,21 @@ html .post-container .post-meta {
   justify-content: center;
   gap: 0.35rem 0.6rem;
   margin: 0.9rem 0 1.4rem;
-  color: #334155;
+  color: var(--text);
   font-size: 0.95rem;
   font-weight: 550;
 }
 html .post-container .post-meta .post-meta-sep {
-  color: #94a3b8;
+  color: var(--muted);
 }
 /* The reading time matters more than the date: bold and darker, date regular. */
 html .post-container .post-meta .post-read {
-  color: #1f2937;
+  color: var(--text);
   font-size: inherit;
   font-weight: 700;
 }
 html .post-container .post-meta .post-date {
-  color: #64748b;
+  color: var(--muted);
   font-weight: 400;
 }
 html .post-tags {
@@ -458,9 +466,9 @@ html a.tag-pill {
   display: inline-block;
   padding: 0.18rem 0.7rem;
   border-radius: 999px;
-  background: #e8f1f9;
-  border: 1px solid #cfe0ef;
-  color: #0b4f7c !important;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  color: var(--text) !important;
   font-size: 0.8rem;
   font-weight: 650;
   line-height: 1.5;
@@ -474,8 +482,8 @@ html a.tag-pill::before {
 }
 html a.tag-pill:hover,
 html a.tag-pill:focus-visible {
-  background: #006cac;
-  border-color: #006cac;
+  background: var(--text);
+  border-color: var(--text);
   color: #fff !important;
   outline: none;
 }
@@ -497,24 +505,24 @@ html .post-preview a.tag-pill {
 /* The home page list shows each post's date on the right (the project's
    start, see tools/post-dates.json); the reading time is in the post header. */
 html .post-preview .post-time {
-  color: #5b6472 !important;
+  color: var(--muted) !important;
   font-weight: 500;
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
 
-/* Nav: the theme's #999 labels were too faint. Dark slate text, mid-slate
+/* Nav: the theme's var(--muted) labels were too faint. Dark slate text, mid-slate
    icons, accent for the current page, and a clear hover state. */
 html .nav .contents ul li a span,
 html .nav .contents ul li button span {
-  color: #334155;
+  color: var(--text);
   font-weight: 600;
   letter-spacing: 0.04em;
 }
 html .nav .contents ul li a i,
 html .nav .contents ul li button i,
 html .nav .contents .nav-svg-icon {
-  color: #475569;
+  color: var(--muted);
 }
 html .nav .contents ul li a:hover span,
 html .nav .contents ul li button:hover span,
@@ -522,30 +530,30 @@ html .nav .contents ul li a:focus-visible span,
 html .nav .contents ul li button:focus-visible span,
 html .nav .contents ul li a:hover i,
 html .nav .contents ul li button:hover i {
-  color: #0b4f7c;
+  color: var(--text);
 }
 html .nav .contents ul li a:hover,
 html .nav .contents ul li button:hover {
-  background-color: #eef3f8;
+  background-color: var(--surface);
 }
 html .nav .contents ul li.active a span,
 html .nav .contents ul li.active a i {
-  color: #006cac;
+  color: var(--text);
   font-weight: 700;
 }
 html .nav .nav-toggle-btn {
-  color: #334155;
+  color: var(--text);
 }
 
 /* Contrast pass (WCAG AA, measured on every page): links move from the theme's
-   #4990E2 (3.3:1) to the site accent #006cac (5.6:1); faint grays darken. */
+   var(--text) (3.3:1) to the site accent var(--text) (5.6:1); faint grays darken. */
 html .post-content a,
 html .about-content a,
 html .post-content a:visited {
-  color: #006cac;
+  color: var(--text);
 }
 html .post-content a:hover {
-  color: #0b4f7c;
+  color: var(--text);
 }
 /* Links in running text were marked by color alone (2.3:1 against the body
    text; WCAG 1.4.1 wants 3:1 or a non-color cue), so underline them. Classed
@@ -631,16 +639,16 @@ html .post-content blockquote {
 }
 html .toc-article a,
 html .toc-article .toc-text {
-  color: #5b6472;
+  color: var(--muted);
 }
 html .toc-article a.is-active,
 html .toc-article a.is-active .toc-text,
 html .toc-article li.active > a,
 html .toc-article li.active > a .toc-text {
-  color: #006cac !important;
+  color: var(--text) !important;
 }
 html .toc-article a.is-trail .toc-text {
-  color: #2f3339;
+  color: var(--text);
 }
 html .footer-copyright,
 html .footer-copyright a,
@@ -648,16 +656,16 @@ html .archive li span,
 html .archives-container .one-tag-list ul li > span,
 html .notfound .notfound-desc,
 html .post-preview .post-time {
-  color: #5b6472 !important;
+  color: var(--muted) !important;
 }
-/* 404 button: white on the theme's #4990E2 is 3.3:1; use the accent. */
+/* 404 button: white on the theme's var(--text) is 3.3:1; use the accent. */
 html .notfound .notfound-btn {
-  background-color: #006cac;
-  box-shadow: 0 4px 12px rgb(0 108 172 / 0.25);
+  background-color: var(--text);
+  box-shadow: 0 4px 12px var(--underline);
 }
 html .notfound .notfound-btn:hover,
 html .notfound .notfound-btn:focus-visible {
-  background-color: #0b4f7c;
+  background-color: var(--text);
 }
 /* The disabled pager end ("Newer / First page") faded to 2.5:1 through
    opacity: 0.45. Show it at full opacity in a muted gray (4.8:1) instead. */
@@ -667,9 +675,9 @@ html .pager .is-disabled {
 html .pager .is-disabled,
 html .pager .is-disabled .pager-label,
 html .pager .is-disabled .pager-sub {
-  color: #6b7280;
+  color: var(--muted);
 }
-/* Hover text in the theme's #4990E2 is 3.0-3.3:1 on the white and tinted
+/* Hover text in the theme's var(--text) is 3.0-3.3:1 on the white and tinted
    backgrounds (post titles, tag cloud, archive links); use the accent. */
 html .post-preview .post-info a h3:hover,
 html .one-tag-list .post-preview a .post-title:hover,
@@ -677,33 +685,33 @@ html .tag-i:hover,
 html .post-container .post-meta a:hover,
 html .archives-container .one-tag-list ul li a span:hover,
 html .pager a:hover .pager-arrow {
-  color: #006cac;
+  color: var(--text);
 }
-/* Search dialog: the "search" button (#4990E2, 3.3:1), close icon (#999,
-   2.8:1), empty-state and snippet text (#979797, 2.9:1) and the pure-red
+/* Search dialog: the "search" button (var(--text), 3.3:1), close icon (var(--muted),
+   2.8:1), empty-state and snippet text (var(--muted), 2.9:1) and the pure-red
    keyword highlight (4.0:1) all fell short. */
 html .search-field .search-container .search-input #begin-search {
-  color: #006cac;
+  color: var(--text);
 }
 html .search-field .search-container .search-input button {
-  color: #5b6472;
+  color: var(--muted);
 }
 html .search-field .search-container .search-input button:hover,
 html .search-field .search-container .search-input button:focus-visible {
-  color: #2f3339;
+  color: var(--text);
 }
 html .search-field .search-result-container .no-search-result,
 html .search-field .search-result-container ul li ul li {
-  color: #5b6472;
+  color: var(--muted);
 }
 html .search-field .red {
   color: #b91c1c;
 }
 html .tag-page-header .tag-page-description {
-  color: #5b6472;
+  color: var(--muted);
 }
 html .tag-page-header .tag-page-eyebrow {
-  color: #006cac;
+  color: var(--text);
 }
 
 /* Reduced motion: the theme's fades, slides and hover transitions (the
@@ -746,7 +754,7 @@ html .site-headline {
   font-size: 1.75rem;
   font-weight: 700;
   line-height: 1.2;
-  color: #0b4f7c;
+  color: var(--text);
 }
 
 /* Phones: the site menu is a row of icons in the fixed top bar, always shown,
@@ -807,8 +815,8 @@ html .site-headline {
   }
   html .nav .contents ul li.active a,
   html .nav .contents ul li a[aria-current="page"] {
-    background: #e3eef8;
-    color: #006cac;
+    background: var(--surface);
+    color: var(--text);
   }
   html .nav .contents ul li :is(a, button) > span {
     position: absolute !important;
@@ -878,7 +886,7 @@ html .post-list-pager button {
   padding: 10px 4px;
   font: inherit;
   font-weight: 600;
-  color: #0b4f7c;
+  color: var(--text);
   background: none;
   border: 0;
   border-radius: 4px;
@@ -890,15 +898,15 @@ html .post-list-pager button:hover:not(:disabled) {
   text-decoration-thickness: 2px;
 }
 html .post-list-pager button:disabled {
-  color: #6b7280;
+  color: var(--muted);
   cursor: default;
 }
 html .post-list-pager button:focus-visible {
-  outline: 2px solid #006cac;
+  outline: 2px solid var(--text);
   outline-offset: 2px;
 }
 html .post-list-status {
-  color: #4b5563;
+  color: var(--muted);
   font-size: 0.9375rem;
 }
 
@@ -928,7 +936,7 @@ html .archives-container .one-tag-list ul li a {
 html .archives-container .one-tag-list ul li a span {
   margin-right: 0;
   min-width: 0;
-  color: #2f3339;
+  color: var(--text);
   font-size: 16px;
   font-weight: 450;
 }
@@ -949,16 +957,36 @@ html .post-container .post-meta .post-code {
   display: inline-flex;
   align-items: center;
   margin-left: 0.5rem;
-  color: #334155;
+  color: var(--text);
   border-bottom: 0;
   text-decoration: none;
   vertical-align: -0.15em;
 }
 html .post-container .post-meta .post-code:is(:hover, :focus-visible) {
-  color: #006cac;
+  color: var(--text);
 }
 /* Tag pills in a post's header were drawn at the theme's post-meta weight
    (350) while the home list's are 650; match the home list. */
 html .post-container .post-meta a.tag-pill {
   font-weight: 650;
+}
+
+/* farhansadeek.com look: off-white page, neutral ink, and links that are the
+   text color with a light underline that darkens on hover. */
+html,
+body {
+  background: var(--bg);
+  color: var(--text);
+}
+html .post-content a,
+html .index-about a {
+  color: var(--text);
+  text-decoration-line: underline;
+  text-decoration-color: var(--underline);
+  text-underline-offset: 3px;
+  transition: text-decoration-color 150ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+html .post-content a:hover,
+html .index-about a:hover {
+  text-decoration-color: var(--text);
 }

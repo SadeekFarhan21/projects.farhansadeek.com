@@ -2,10 +2,10 @@
    site's Tailwind classes; the tokens below are read by figure-kit.ts. */
 :root {
   --background: #fdfdfd;
-  --foreground: #282728;
-  --muted-foreground: #6b7280;
+  --foreground: var(--text);
+  --muted-foreground: var(--muted);
   --border: #ece9e9;
-  --accent: #006cac;
+  --accent: var(--text);
 }
 
 .fig {
@@ -26,7 +26,7 @@
    step darker than the source and hint lines under it. */
 .fig figcaption {
   margin-top: 0.75rem;
-  color: #4b5563;
+  color: var(--muted);
   font-size: 0.875rem;
   line-height: 1.6;
   text-align: left;
@@ -36,7 +36,7 @@
    measure labels at the same sizes (Layout.axisPx / labelPx): change both
    together or labels clip. */
 .fig .fig-axis {
-  fill: #5b6472;
+  fill: var(--muted);
   font-size: 12px;
 }
 .fig .fig-label {
@@ -247,7 +247,7 @@
 }
 .fig-legend-item:hover,
 .fig-legend-item[aria-pressed="true"] {
-  background: rgb(0 108 172 / 0.08);
+  background: var(--surface);
   /* muted gray on the tint is 4.3:1; the full ink keeps it above 4.5:1 */
   color: var(--foreground);
 }
@@ -321,7 +321,7 @@
   transition: filter 120ms ease;
 }
 .post-content figure.excal-interactive .excal-hot:is(:hover, :focus-visible) {
-  filter: drop-shadow(0 0 5px rgb(0 108 172 / 0.6));
+  filter: drop-shadow(0 0 5px var(--muted));
   outline: none;
 }
 .post-content figure.excal-interactive .excal-hint {
