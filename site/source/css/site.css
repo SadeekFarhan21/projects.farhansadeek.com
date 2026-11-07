@@ -22,9 +22,6 @@ html .toc-article * {
   --underline: #d4d4d4;
   --border: #e5e5e5;
   --surface: #f2f2f2;
-  /* Link underlines in posts: a step stronger than the homepage's hairline,
-     since long technical posts lean on links and [n] citations. */
-  --link-underline: #a3a3a3;
   --aerlume-local-font: "Quicksand";
   /* Post blocks (code, tables, charts, diagrams, display math, details):
      one frame and one vertical rhythm, see "Post blocks" below. */
@@ -578,13 +575,12 @@ html .about-content a:not([class]):hover {
    with two rules. Image links (.excal-link) and pills are left alone. */
 html .post-content :is(p, li, td, th, blockquote, dd, figcaption) a:not(.tag-pill):not(.excal-link) {
   text-decoration: underline;
-  text-decoration-color: var(--link-underline);
   text-decoration-thickness: 1px;
   text-underline-offset: 0.18em;
   border-bottom: 0;
 }
 html .post-content :is(p, li, td, th, blockquote, dd, figcaption) a:not(.tag-pill):not(.excal-link):is(:hover, :focus-visible) {
-  text-decoration-color: var(--text);
+  text-decoration-thickness: 2px;
 }
 /* Citations: scripts/cite-inline.js renders [3] inline on the baseline at
    the size of the surrounding text, and marks the References list
@@ -594,17 +590,12 @@ html .post-content a.cite {
   vertical-align: baseline;
   white-space: nowrap;
 }
-/* Citations: links are the text color now (farhansadeek.com style), so the
-   underline is what marks them, as on every other link; it darkens on hover.
-   Matches the running-text link rules' specificity. */
-html .post-content :is(p, li, td, th, blockquote, dd, figcaption) a.cite:not(.tag-pill):not(.excal-link) {
-  text-decoration-line: underline;
-  text-decoration-thickness: 1px;
-  text-decoration-color: var(--link-underline);
-  border-bottom: 0;
-}
+/* No underline on citations, even on hover: the brackets and link color
+   already mark them. Matches the running-text link rules' specificity. */
+html .post-content :is(p, li, td, th, blockquote, dd, figcaption) a.cite:not(.tag-pill):not(.excal-link),
 html .post-content :is(p, li, td, th, blockquote, dd, figcaption) a.cite:not(.tag-pill):not(.excal-link):is(:hover, :focus-visible) {
-  text-decoration-color: var(--text);
+  text-decoration: none;
+  border-bottom: 0;
 }
 /* Lists hang: the marker sits in a gutter at the text column's left edge
    and every line of an item, wrapped ones included, starts at the same x.
@@ -991,7 +982,7 @@ html .post-content a,
 html .index-about a {
   color: var(--text);
   text-decoration-line: underline;
-  text-decoration-color: var(--link-underline);
+  text-decoration-color: var(--underline);
   text-underline-offset: 3px;
   transition: text-decoration-color 150ms cubic-bezier(0.4, 0, 0.2, 1);
 }
@@ -1017,7 +1008,6 @@ html .index-about a:hover {
   --code-border: #262626;
   --code-ink: #e6edf3;
   --code-muted: #a3a3a3;
-  --link-underline: #737373;
 }
 
 /* The Excalidraw diagrams and D3 charts are drawn in light colors. In dark
