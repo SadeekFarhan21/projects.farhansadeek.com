@@ -484,7 +484,7 @@ html a.tag-pill:hover,
 html a.tag-pill:focus-visible {
   background: var(--text);
   border-color: var(--text);
-  color: var(--bg) !important;
+  color: #fff !important;
   outline: none;
 }
 /* the home page list: pills under each title, date in a darker gray */
@@ -1010,37 +1010,19 @@ html .index-about a:hover {
   --code-muted: #a3a3a3;
 }
 
-/* The Excalidraw diagrams and D3 charts are drawn in light colors. In dark
-   mode they get Excalidraw's own dark-mode treatment, invert(93%) plus a
-   180deg hue turn: the white ground goes near-black and every hue stays
-   put. Chart titles and captions are page text and need none of it, so only
-   the image and the chart's SVG are filtered. The SVG keeps the light tokens
-   it was drawn with, so the inversion lands on the right colors. */
-:root[data-theme='dark'] .post-content figure.excal {
-  background: transparent;
-}
-:root[data-theme='dark'] .post-content figure.excal img,
-:root[data-theme='dark'] .post-content .fig svg,
-:root[data-theme='dark'] .post-content .fig .fig-swatch {
-  filter: invert(93%) hue-rotate(180deg);
-}
-/* The chart's HTML (title, legend, caption) reads figures.css's tokens,
-   which stay light for figure-kit.ts; give it the dark ones instead. */
-:root[data-theme='dark'] .post-content .fig {
-  --foreground: #f5f5f5;
-  --muted-foreground: #a3a3a3;
-  --border: #262626;
-  --background: #0a0a0a;
-}
-:root[data-theme='dark'] .post-content .fig svg {
-  --foreground: #171717;
-  --muted-foreground: #525252;
-  --background: #fdfdfd;
+/* The D3 charts and Excalidraw diagrams are drawn in light colors, so in
+   dark mode each sits on its own light card instead of being recolored. */
+:root[data-theme='dark'] .post-content :is(.fig, figure.excal) {
+  color-scheme: light;
   --text: #171717;
   --muted: #525252;
   --underline: #d4d4d4;
   --border: #ece9e9;
   --surface: #f2f2f2;
+  --block-border: #e5e5e5;
+  background: #fafafa;
+  color: #171717;
+  border-radius: var(--block-radius);
 }
 
 /* GitHub-dark syntax colors to match the light palette in code.css */
