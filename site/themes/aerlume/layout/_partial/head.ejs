@@ -124,6 +124,20 @@ var keywords = escapeAttribute(pageKeywords);
     </script>
     <% } %>
 
+    <!-- Same rule as farhansadeek.com: a saved choice wins, otherwise follow the system -->
+    <meta name="theme-color" content="#0a0a0a">
+    <script>
+    (function () {
+      var theme;
+      try { theme = localStorage.getItem('theme'); } catch (e) {}
+      if (theme !== 'light' && theme !== 'dark') {
+        theme = window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
+      }
+      document.documentElement.dataset.theme = theme;
+      document.querySelector('meta[name="theme-color"]').content = theme === 'light' ? '#fafafa' : '#0a0a0a';
+    })();
+    </script>
+
     <!-- 资源提示：提前建立连接 -->
     <link rel="preconnect" href="https://at.alicdn.com" crossorigin>
 

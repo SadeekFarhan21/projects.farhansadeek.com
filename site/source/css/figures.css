@@ -1,11 +1,14 @@
 /* Chart styles for the D3 figures (figures/*.ts). Ported from the Astro
    site's Tailwind classes; the tokens below are read by figure-kit.ts. */
 :root {
+  /* Fixed light values, not the page tokens: figure-kit.ts reads these from
+     <html>, and charts always draw on a light surface (a light card in dark
+     mode, see site.css), so they must not follow the dark palette. */
   --background: #fdfdfd;
-  --foreground: var(--text);
-  --muted-foreground: var(--muted);
+  --foreground: #171717;
+  --muted-foreground: #525252;
   --border: #ece9e9;
-  --accent: var(--text);
+  --accent: #171717;
 }
 
 .fig {
